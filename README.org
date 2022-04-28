@@ -1,0 +1,11 @@
+* Installation
+As =stagedtt= uses [[https://github.com/RedPRL/algaeff][algaeff]] for effects, we will need to use a version
+of the OCaml compiler that supports effects.
+Begin by running the following command:
+- ~opam switch create stagedtt 5.0.0+trunk~
+
+This will create a new [[https://opam.ocaml.org/doc/FAQ.html#What-is-a-quot-switch-quot][opam switch]] for =stagedtt=.
+
+Next, run the following 2 commands to install =stagedtt=
+- ~eval $(opam env)~
+- ~opam install .~

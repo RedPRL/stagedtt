@@ -1,0 +1,4 @@
+(library
+  (name Core)
+  (libraries algaeff bwd)
+  (public_name stagedtt.core))
