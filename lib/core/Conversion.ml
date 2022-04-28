@@ -72,7 +72,7 @@ open struct
       equate_tp_clo fam0 fam1
     | D.Sign sign0, D.Sign sign1 ->
       equate_sign sign0 sign1
-    | D.Univ, D.Univ ->
+    | D.Univ stage0, D.Univ stage1 when stage0 = stage1 ->
       ()
     | D.Expr tp0, D.Expr tp1 ->
       equate_tp tp0 tp1
@@ -100,7 +100,8 @@ open struct
       equate fam0 fam1
     | CodeSign fields0, CodeSign fields1 ->
       List.iter2 equate_field fields0 fields1
-    | CodeUniv, CodeUniv -> ()
+    | CodeUniv stage0, CodeUniv stage1 when stage0 = stage1 -> 
+      ()
     | _ -> raise NotConvertible
 
   (*******************************************************************************

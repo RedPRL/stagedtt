@@ -16,7 +16,7 @@ module rec Syntax : sig
 
     | CodePi of t * t
     | CodeSign of (string * t) list
-    | CodeUniv
+    | CodeUniv of int
 
   and tp =
     | TpVar of int
@@ -24,7 +24,7 @@ module rec Syntax : sig
     | Sign of sign
     | Expr of tp
     | El of t
-    | Univ
+    | Univ of int
 
   and sign = (string * tp) list
 end =
@@ -44,7 +44,7 @@ struct
 
     | CodePi of t * t
     | CodeSign of (string * t) list
-    | CodeUniv
+    | CodeUniv of int
 
   and tp =
     | TpVar of int
@@ -52,7 +52,7 @@ struct
     | Sign of sign
     | Expr of tp
     | El of t
-    | Univ
+    | Univ of int
 
   and sign = (string * tp) list
 end
@@ -75,12 +75,12 @@ and Domain : sig
   and code =
     | CodePi of t * t
     | CodeSign of (string * t) list
-    | CodeUniv
+    | CodeUniv of int
 
   and tp =
     | Pi of tp * string * tp_clo
     | Sign of sign
-    | Univ
+    | Univ of int
     | Expr of tp
     | El of code
     | ElNeu of neu
@@ -118,12 +118,12 @@ struct
   and code =
     | CodePi of t * t
     | CodeSign of (string * t) list
-    | CodeUniv
+    | CodeUniv of int
 
   and tp =
     | Pi of tp * string * tp_clo
     | Sign of sign
-    | Univ
+    | Univ of int
     | Expr of tp
     | El of code
     | ElNeu of neu

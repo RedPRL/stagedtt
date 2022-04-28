@@ -41,8 +41,8 @@ open struct
       S.Pi (quote_tp base, x, quote_tp_clo fam)
     | D.Sign sign ->
       S.Sign (quote_sign sign)
-    | D.Univ ->
-      S.Univ
+    | D.Univ stage ->
+      S.Univ stage
     | D.Expr tp ->
       S.Expr (quote_tp tp)
     | D.El code ->
@@ -64,8 +64,8 @@ open struct
       S.CodePi (quote base, quote fam)
     | D.CodeSign fields -> 
       S.CodeSign (quote_fields fields)
-    | D.CodeUniv ->
-      S.CodeUniv
+    | D.CodeUniv stage ->
+      S.CodeUniv stage
 
   (*******************************************************************************
    * Quoting Neutrals *)

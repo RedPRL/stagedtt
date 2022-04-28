@@ -53,8 +53,8 @@ open struct
       D.Code (D.CodePi (eval base, eval fam))
     | S.CodeSign fields ->
       D.Code (D.CodeSign (eval_fields fields))
-    | S.CodeUniv ->
-      D.Code (D.CodeUniv)
+    | S.CodeUniv stage ->
+      D.Code (D.CodeUniv stage)
 
   and eval_fields fields =
     List.map (fun (lbl, t) -> (lbl, eval t)) fields
@@ -74,8 +74,8 @@ open struct
       D.Expr (eval_tp tp)
     | S.El code ->
       do_el (eval code)
-    | S.Univ ->
-      D.Univ
+    | S.Univ stage ->
+      D.Univ stage
 
   and eval_sign : S.sign -> D.sign =
     function
