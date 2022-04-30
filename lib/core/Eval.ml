@@ -1,4 +1,4 @@
-open Bwd
+open TermBuilder
 
 module S = Syntax
 module D = Domain
@@ -9,27 +9,20 @@ open struct
   module Eff = Algaeff.Reader.Make (struct type env = D.env end)
 
   let get_local ix =
-    match BwdLabels.nth_opt (Eff.read ()).venv ix with
-    | Some v -> v
-    | None -> raise @@ NbeFailed "Variable out of scope!"
+    match D.Env.lookup_idx (Eff.read ()) ix with
+    | Some v -> Lazy.force v
+    | None -> raise @@ NbeFailed "Variable lookup out of scope!"
 
   let get_local_tp ix =
-    match BwdLabels.nth_opt (Eff.read ()).tpenv ix with
-    | Some v -> v
-    | None -> raise @@ NbeFailed "Variable out of scope!"
+    match D.Env.lookup_tp_idx (Eff.read ()) ix with
+    | Some tp -> tp
+    | None -> raise @@ NbeFailed "Variable lookup out of scope!"
 
   let clo body =
     D.Clo (body, Eff.read())
 
-  and push_frm (neu : D.neu) (frm : D.frm) ~(unfold : D.t -> D.t) : D.neu =
-    match neu.hd with
-    | D.Global (nm, v) ->
-      { hd = Global (nm, Lazy.map unfold v); spine = frm :: neu.spine }
-    | _ ->
-      { hd = neu.hd; spine = frm :: neu.spine }
 
-  (*******************************************************************************
-   * Evaluating Values *)
+  (** {1 Evaluating Terms} *)
 
   let rec eval : S.t -> D.t =
     function
@@ -59,8 +52,7 @@ open struct
   and eval_fields fields =
     List.map (fun (lbl, t) -> (lbl, eval t)) fields
 
-  (*******************************************************************************
-   * Evaluating Types *)
+  (** {1 Evaluating Types} *)
 
   and eval_tp : S.tp -> D.tp =
     function
@@ -82,15 +74,14 @@ open struct
     | [] -> D.Empty
     | (lbl, tp) :: sign -> D.Field (lbl, eval_tp tp, clo sign)
 
-  (*******************************************************************************
-   * Eliminators *)
+  (** {1 Eliminators} *)
 
   and do_ap (v : D.t) (arg : D.t) =
     match v with
     | D.Lam (_, clo) ->
       inst_tm_clo clo arg
     | D.Neu neu ->
-      D.Neu (push_frm neu (D.Ap arg) ~unfold:(fun fn -> do_ap fn arg))
+      D.Neu (D.push_frm neu (D.Ap arg) ~unfold:(fun fn -> do_ap fn arg))
     | _ ->
       raise @@ NbeFailed "Not a function in do_ap"
 
@@ -99,7 +90,7 @@ open struct
     | D.Struct fields ->
       List.assoc lbl fields
     | D.Neu neu ->
-      D.Neu (push_frm neu (D.Proj lbl) ~unfold:(fun v -> do_proj v lbl))
+      D.Neu (D.push_frm neu (D.Proj lbl) ~unfold:(fun v -> do_proj v lbl))
     | _ ->
       raise @@ NbeFailed "Not a struct in do_proj"
 
@@ -108,7 +99,7 @@ open struct
     | D.Quote t ->
       t
     | D.Neu neu ->
-      D.Neu (push_frm neu D.Splice ~unfold:do_splice)
+      D.Neu (D.push_frm neu D.Splice ~unfold:do_splice)
     | _ ->
       raise @@ NbeFailed "Not a quoted value in do_splice"
 
@@ -121,27 +112,45 @@ open struct
     | _ ->
       raise @@ NbeFailed "Not a code in do_el"
 
-  (*******************************************************************************
-   * Closure Instantiation *)
+  and unfold_el (code : D.code) : D.tp =
+    match code with
+    | D.CodePi (base, fam) ->
+      graft_tp @@
+      Graft.value base @@ fun base ->
+      Graft.value fam @@ fun fam ->
+      Graft.build @@
+      TB.pi (TB.el base) @@ fun x -> TB.el (TB.ap fam x)
+    | D.CodeSign fields ->
+      graft_tp @@
+      Graft.fields fields @@ fun fields ->
+      Graft.build @@
+      TB.sign @@ List.map (fun (lbl, field) -> (lbl, TB.el field)) fields
+    | D.CodeUniv stage -> D.Univ stage
+
+  (** {1 Closure Instantiation} *)
 
   and inst_tm_clo (clo : D.tm_clo) (x : D.t) : D.t =
     match clo with
-    | D.Clo (body, env) -> Eff.run ~env:{ env with venv = Snoc(env.venv, x) } (fun () -> eval body)
+    | D.Clo (body, env) -> Eff.run ~env:(D.Env.extend env x) (fun () -> eval body)
 
   and inst_tp_clo (clo : D.tp_clo) (x : D.t) : D.tp =
     match clo with
-    | D.Clo (body, env) -> Eff.run ~env:{ env with venv = Snoc(env.venv, x) } (fun () -> eval_tp body)
+    | D.Clo (body, env) -> Eff.run ~env:(D.Env.extend env x) (fun () -> eval_tp body)
 
   and inst_sign_clo (clo : D.sign_clo) (x : D.t) : D.sign =
     match clo with
-    | D.Clo (body, env) -> Eff.run ~env:{ env with venv = Snoc(env.venv, x) } (fun () -> eval_sign body)
+    | D.Clo (body, env) -> Eff.run ~env:(D.Env.extend env x) (fun () -> eval_sign body)
 
+  and graft_value (gtm : S.t Graft.t) =
+    let tm, env = Graft.graft gtm in
+    Eff.run ~env @@ fun () -> eval tm
+
+  and graft_tp (gtp : S.tp Graft.t) =
+    let tp, env = Graft.graft gtp in
+    Eff.run ~env @@ fun () -> eval_tp tp
 end
 
-(*******************************************************************************
- * Public Interface *)
-
-let push_frm = push_frm
+(** {1 Public Interface} *)
 
 let eval ~env tm =
   Eff.run ~env @@ fun () -> eval tm
@@ -157,3 +166,8 @@ let do_ap = do_ap
 let do_proj = do_proj
 let do_splice = do_splice
 let do_el = do_el
+
+let unfold_el = unfold_el
+
+let graft_value = graft_value
+let graft_tp = graft_tp

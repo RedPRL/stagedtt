@@ -43,7 +43,9 @@ open struct
    * Equating Values *)
 
   let rec equate (v0 : D.t) (v1 : D.t) : unit =
+    let mode = get_mode() in
     match unfold v0, unfold v1 with
+    (* Straightforward syntactic checks *)
     | D.Neu neu0, D.Neu neu1 ->
       equate_neu neu0 neu1
     | D.Lam (_, clo0), D.Lam (_, clo1) ->
@@ -54,7 +56,15 @@ open struct
       equate v0 v1
     | D.Code code0, D.Code code1 ->
       equate_code code0 code1
-    | v0, v1 -> equate_eta v0 v1
+    (* We unfold globals when in Rigid mode before attempting eta-expansion *)
+    | D.Neu { hd = D.Global(_, unf); _ }, v
+    | v, D.Neu { hd = D.Global(_, unf); _ } when mode = Rigid ->
+      equate (Lazy.force unf) v
+    (* When we have a neutral, we need to attempt to eta-expand. *)
+    | D.Neu neu, tm
+    | tm, D.Neu neu ->
+      equate_eta neu tm
+    | _ -> raise NotConvertible
 
   and equate_field (lbl0, v0) (lbl1, v1) =
     if lbl0 = lbl1 then
@@ -80,7 +90,7 @@ open struct
       equate_code code0 code1
     | D.ElNeu neu0, D.ElNeu neu1 ->
       equate_neu neu0 neu1
-    | _ -> raise NotConvertible
+    | tp0, tp1 -> equate_eta_tp tp0 tp1
 
   and equate_sign (sign0 : D.sign) (sign1 : D.sign) : unit =
     match sign0, sign1 with
@@ -154,46 +164,37 @@ open struct
       ()
     | _ -> raise NotConvertible
 
-  (*******************************************************************************
-   * Equating with Eta Expansion *)
+  (** {1 Equating with Eta Expansion} *)
 
-  (* [FIXME: Reed M, 28/04/2022] Lots of code duplication here! *)
-  and equate_eta (v0 : D.t) (v1 : D.t) =
-    let mode = get_mode() in
-    match v0, v1 with
-    (* we unfold globals when in Rigid mode before eta-expanding.*)
-    | D.Neu { hd = D.Global(_, v0); _ }, v1 when mode = Rigid ->
-      equate (Lazy.force v0) v1
-    | v0, D.Neu { hd = D.Global(_, v1); _ } when mode = Rigid ->
-      equate v0 (Lazy.force v1)
-    (* Eta-expansion. *)
-    | D.Neu neu, D.Lam (_, clo)
-    | D.Lam (_, clo), D.Neu neu ->
-      bind_var @@ fun arg -> 
-      equate_eta_spine (Eval.push_frm neu (D.Ap arg) ~unfold:(fun v -> Eval.do_ap v arg)) (Eval.inst_tm_clo clo arg)
-    | D.Neu neu, D.Struct fields
-    | D.Struct fields, D.Neu neu ->
-      fields |> List.iter @@ fun (lbl, vfield) ->
-      equate_eta_spine (Eval.push_frm neu (D.Proj lbl) ~unfold:(fun v -> Eval.do_proj v lbl)) vfield
-    | _  -> raise NotConvertible
-
-  and equate_eta_spine (neu0 : D.neu) (v1 : D.t) =
+  and equate_eta (neu0 : D.neu) (v1 : D.t) =
     match unfold v1 with
     | D.Neu neu1 ->
-      if neu0.hd = neu1.hd then 
+      if neu0.hd = neu1.hd then
         equate_spine neu0.spine neu1.spine
-      else 
+      else
         raise NotConvertible
     | D.Lam (_, clo) ->
       bind_var @@ fun arg ->
-      equate_eta_spine (Eval.push_frm neu0 (D.Ap arg) ~unfold:(fun v -> Eval.do_ap v arg)) (Eval.inst_tm_clo clo arg)
+      equate_eta (D.push_frm neu0 (D.Ap arg) ~unfold:(fun v -> Eval.do_ap v arg)) (Eval.inst_tm_clo clo arg)
     | D.Struct fields ->
       fields |> List.iter @@ fun (lbl, vfield) ->
-      equate_eta_spine (Eval.push_frm neu0 (D.Proj lbl) ~unfold:(fun v -> Eval.do_proj v lbl)) vfield
+      equate_eta (D.push_frm neu0 (D.Proj lbl) ~unfold:(fun v -> Eval.do_proj v lbl)) vfield
+    | D.Quote v1 ->
+      equate_eta (D.push_frm neu0 D.Splice ~unfold:Eval.do_splice) v1
     | _ -> raise NotConvertible
 
-  (*******************************************************************************
-   * Equating Closures *)
+  and equate_eta_tp (tp0 : D.tp) (tp1 : D.tp) =
+    match tp0, tp1 with
+    (* Because we aren't using weak tarski universes, we need to unfold
+       layers of El here. *)
+    | D.El code, tp
+    | tp, D.El code ->
+      equate_tp tp (Eval.unfold_el code)
+    (* [TODO: Reed M, 29/04/2022] What happens when we try to equate an ElNeu with a type? *)
+    | _ -> raise NotConvertible
+
+
+  (** {1 Equating Closures} *)
 
   and equate_tm_clo clo0 clo1 =
     bind_var @@ fun arg ->
