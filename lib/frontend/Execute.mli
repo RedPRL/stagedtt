@@ -6,4 +6,4 @@ type status =
 
 val exec_command : command -> status
 val exec : command list -> unit
-val load : [`Stdin | `File of string] -> unit
+val load : [ `Stdin | `File of string ] -> unit

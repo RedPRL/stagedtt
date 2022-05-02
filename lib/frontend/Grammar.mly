@@ -12,8 +12,7 @@ let ap_or_atomic =
 
 %token <int> NUMERAL
 %token <string> ATOM
-(* Infix operators *)
-%token COLON_EQUALS RIGHT_ARROW
+%token COLON COLON_EQUALS RIGHT_ARROW
 (* Symbols *)
 %token LAMBDA
 (* Delimiters *)
@@ -38,7 +37,7 @@ commands:
     { cmd :: cmds }
 
 command:
-  | DEF; ident = ATOM; tp = term; COLON_EQUALS tm = term
+  | DEF; ident = ATOM; COLON; tp = term; COLON_EQUALS tm = term
     { Declare {ident; tp = Some tp; tm} }
   | FAIL; ident = ATOM; tp = term; COLON_EQUALS tm = term
     { Declare {ident; tp = Some tp; tm} }
@@ -60,6 +59,8 @@ term:
 arrow:
   | LAMBDA; nms = list(ATOM); RIGHT_ARROW; tm = term
     { Lam (nms, tm) }
+  | LPR; ident = ATOM; COLON; base = term; RPR; RIGHT_ARROW; fam = term
+    { Pi (base, ident, fam) }
 
 atomic_term:
   | LPR; tm = term; RPR

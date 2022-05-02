@@ -5,7 +5,9 @@ type status =
   | Quit
 
 let not_implemented string =
-  Format.eprintf "Warning: %s is not implemented yet!" string;
+  let message = Format.asprintf "%s is not implemented yet!" string in
+  let diag = Diagnostic.warning ~code:"W0001" message in
+  Diagnostic.pp Format.err_formatter diag;
   Continue
 
 let exec_command : command -> status =
@@ -33,5 +35,6 @@ let rec exec : command list -> unit =
     end
 
 let load input =
-  let cmds = Loader.load input in
-  exec cmds
+  match Loader.load input with
+  | Ok cmds -> exec cmds
+  | Error diagnostic -> Diagnostic.pp Format.err_formatter diagnostic

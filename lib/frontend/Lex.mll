@@ -28,8 +28,22 @@ let commands =
 
 let keywords =
   make_table 0 [
+    ("def", DEF);
     ("type", TYPE)
   ]
+
+(* Some Lexing Utilities *)
+type span =
+  {start : position;
+   stop : position}
+
+let last_token lexbuf = 
+  let tok = lexeme lexbuf in
+  if tok = "" then None else Some tok
+
+let current_span lexbuf = 
+  {start = lexbuf.lex_start_p; stop = lexbuf.lex_curr_p}
+
 }
 
 let line_ending
@@ -74,6 +88,12 @@ and real_token = parse
   (* Symbols *)
   | "\\" | "λ"
     { LAMBDA }
+  | "->" | "→"
+    { RIGHT_ARROW }
+ | ':'
+    { COLON }
+  | ":="
+    { COLON_EQUALS }
   (* Delimiters *)
   | '('
     { LPR }
@@ -98,4 +118,4 @@ and real_token = parse
   | eof
     { EOF }
   | _
-    { Printf.eprintf "Unexpected char: %s\n" (lexeme lexbuf); token lexbuf }
+    { raise @@ SyntaxError (lexeme lexbuf) }
