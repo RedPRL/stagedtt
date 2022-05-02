@@ -8,6 +8,8 @@ bug-reports: "https://www.github.com/TOTBWF/stagedtt"
 depends: [
   "dune" {>= "2.9"}
   "bwd" {>= "1.2"}
+  "cmdliner" {>= "1.1"}
+  "ppxlib"
   "algaeff"
   "odoc" {with-doc}
 ]

@@ -1,4 +1,6 @@
 (executable
  (public_name stagedtt)
  (name main)
- (libraries stagedtt.core))
+ (libraries stagedtt.frontend cmdliner stagedtt.ppx_githash)
+ (preprocess (pps stagedtt.ppx_githash))
+ )

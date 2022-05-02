@@ -1,0 +1,10 @@
+(menhir
+ (flags --strict --explain --table)
+ (modules Grammar))
+
+(ocamllex Lex)
+
+(library
+  (name Frontend)
+  (libraries stagedtt.elaborator stagedtt.core menhirLib)
+  (public_name stagedtt.frontend))

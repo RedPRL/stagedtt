@@ -1,0 +1,7 @@
+(library
+ (name ppx_githash)
+ (public_name stagedtt.ppx_githash)
+ (wrapped false)
+ (kind ppx_rewriter)
+ (libraries ppxlib unix)
+ (preprocess (pps ppxlib.metaquot)))

@@ -1,0 +1,4 @@
+(library
+  (name Elaborator)
+  (libraries algaeff bwd stagedtt.core)
+  (public_name stagedtt.elaborator))

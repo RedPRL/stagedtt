@@ -17,10 +17,13 @@
 (homepage "https://www.github.com/TOTBWF/stagedtt")
 (bug_reports "https://www.github.com/TOTBWF/stagedtt")
 
+
 (package
   (name stagedtt)
   (synopsis "A staged type theory")
   (depends
     (bwd (>= 1.2))
+    (cmdliner (>= 1.1))
+    ppxlib
     algaeff))
 
