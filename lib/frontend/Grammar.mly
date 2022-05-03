@@ -17,7 +17,8 @@ let ap_or_atomic =
 %token LAMBDA
 (* Delimiters *)
 %token LPR RPR
-%token TYPE
+(* Keywords *)
+%token TYPE THE
 (* Commands *)
 %token DEF NORMALIZE STAGE PRINT FAIL QUIT
 %token EOF
@@ -69,3 +70,5 @@ atomic_term:
     { Var nm }
   | TYPE; stage = NUMERAL
     { Univ { stage } }
+  | THE; tp = atomic_term; tm = atomic_term 
+    { Ann { tm; tp} }

@@ -3,6 +3,8 @@ module Bwd = BwdLabels
 
 module CS = Syntax
 
+open Core
+
 module S = Core.Syntax
 module D = Core.Domain
 
@@ -24,6 +26,8 @@ type env =
 
        Invariant: Bwd.length locals = size *)
     size   : int }
+
+let empty_env = { locals = Emp; size = 0 }
 
 open struct
   module Eff = Algaeff.Reader.Make (struct type nonrec env = env end)
@@ -75,16 +79,17 @@ open struct
   let lift_quote (f : size:int -> 'a) : 'a =
     f ~size:(get_size())
 
-  let eval = lift_eval Core.Eval.eval
-  let eval_tp = lift_eval Core.Eval.eval_tp
-  let quote = lift_quote Core.Quote.quote
-  let quote_tp = lift_quote Core.Quote.quote_tp
+  let eval tm = lift_eval Core.Eval.eval tm
+  let eval_tp tp = lift_eval Core.Eval.eval_tp tp
+  let quote tm = lift_quote Core.Quote.quote tm
+  let quote_tp tp = lift_quote Core.Quote.quote_tp tp
 
   let inst_tm_clo = Core.Eval.inst_tm_clo
   let inst_tp_clo = Core.Eval.inst_tp_clo
 
   (** {1 Errors} *)
 
+  (* [TODO: Reed M, 02/05/2022] Think these through more... *)
   exception TypeError of string
 
   (** {1 Elaborating Types} *)
@@ -122,11 +127,65 @@ open struct
       S.Sign sign, 0
     | CS.Univ {stage} ->
       S.Univ stage, stage
-    | _ -> raise @@ TypeError "Type annotation required"
+    | _ -> raise @@ TypeError "Type not inferrable"
+
+  (** {1 Elaborating Terms} *)
+  and check (tm : CS.t) (tp : D.tp) : S.t =
+    match tm, tp with
+    | CS.Lam ([], body), tp ->
+      check body tp
+    | CS.Lam (name :: names, body), D.Pi (base, _, fam) ->
+      bind_var name base @@ fun arg ->
+      let fib = inst_tp_clo fam (Lazy.force arg.value) in
+      S.Lam(name, check (CS.Lam (names, body)) fib)
+    | _ ->
+      let tm', tp' = infer tm in
+      try Conversion.equate_tp ~size:0 tp tp'; tm' with
+      | Conversion.NotConvertible -> raise @@ TypeError "Not of expected type"
+
+  (* [TODO: Reed M, 02/05/2022] Should I return the stage here? *)
+  and infer (tm : CS.t) : S.t * D.tp =
+    match tm with
+    | CS.Var nm ->
+      begin
+        match resolve_local nm with
+        | Some ix ->
+          let cell = get_local ix in
+          (* [TODO: Reed M, 02/05/2022] Do we unfold the local here? *)
+          S.Local ix, cell.tp
+        | None -> raise @@ TypeError "Variable not in scope."
+      end
+    | CS.Ap (t, ts) ->
+      let rec check_args tp tms =
+        match tp, tms with
+        | tp, [] -> [], tp
+        | (D.Pi (base, _, fam)), (tm :: tms) ->
+          let tm = check tm base in
+          let vtm = eval tm in
+          let fib = inst_tp_clo fam vtm in
+          let tms, ret = check_args fib tms in
+          (tm :: tms, ret)
+        | _ -> raise @@ TypeError "Expected a pi type"
+      in
+      let f_tm, f_tp = infer t in
+      let tms, tp = check_args f_tp ts in
+      S.apps f_tm tms, tp
+    | CS.Ann {tm; tp} ->
+      let (tp, _) = infer_tp tp in
+      let vtp = eval_tp tp in
+      let tm = check tm vtp in
+      (tm, vtp)
+    | _ -> raise @@ TypeError "Not inferrable"
 end
 
-let check_tp ~env tp ~stage =
-  Eff.run ~env @@ fun () -> check_tp tp ~stage
+let check_tp tp ~stage =
+  Eff.run ~env:empty_env @@ fun () -> check_tp tp ~stage
 
-let infer_tp ~env tp =
-  Eff.run ~env @@ fun () -> infer_tp tp
+let infer_tp tp =
+  Eff.run ~env:empty_env @@ fun () -> infer_tp tp
+
+let check tm tp =
+  Eff.run ~env:empty_env @@ fun () -> check tm tp
+
+let infer tm =
+  Eff.run ~env:empty_env @@ fun () -> infer tm

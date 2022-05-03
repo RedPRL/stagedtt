@@ -152,6 +152,12 @@ end
 
 (** {1 Public Interface} *)
 
+(* [TODO: Reed M, 28/04/2022] Can we use Lazy.force_val here? *)
+let unfold : D.t -> D.t =
+  function
+  | D.Neu { hd = D.Global(_,v); _ } -> Lazy.force v
+  | tm -> tm
+
 let eval ~env tm =
   Eff.run ~env @@ fun () -> eval tm
 

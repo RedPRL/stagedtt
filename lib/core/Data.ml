@@ -123,6 +123,9 @@ and Domain : sig
     (** Lookup a DeBrujin Index in an environment. *)
     val lookup_tp_idx : env -> int -> tp option
 
+    (** Get all the local bindings in an environment. *)
+    val locals : env -> t Lazy.t bwd
+
     (** Get the number of values in the environment. *)
     val size : env -> int
 
@@ -208,6 +211,9 @@ struct
 
     let lookup_tp_idx env idx =
       BwdLabels.nth_opt env.tp_locals idx
+
+    let locals env =
+      env.locals
 
     let size env =
       env.size

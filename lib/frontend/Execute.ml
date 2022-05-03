@@ -1,4 +1,10 @@
 open Command
+open Elaborator
+open Core
+
+module CS = Elaborator.Syntax
+module S = Core.Syntax
+module D = Core.Domain
 
 type status =
   | Continue
@@ -16,8 +22,13 @@ let exec_command : command -> status =
     not_implemented "def"
   | Fail _ ->
     not_implemented "#fail"
-  | Normalize _ ->
-    not_implemented "#normalize"
+  | Normalize { tm } ->
+    Format.printf "Refining %a@." CS.dump tm;
+    let (tm, tp) = Refiner.infer tm in
+    Format.printf "Normalizing %a@." S.dump tm;
+    let nf = Quote.quote ~size:0 @@ Eval.eval ~env:D.Env.empty tm in
+    Format.printf "Normalized %a@." S.dump nf;
+    Continue
   | Stage _ ->
     not_implemented "#stage"
   | Print _ ->

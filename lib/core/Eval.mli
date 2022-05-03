@@ -4,6 +4,7 @@ module S = Syntax
 module D = Domain
 
 (** {1 Evaluation} *)
+val unfold : D.t -> D.t
 val eval : env:D.env -> S.t -> D.t
 val eval_tp : env:D.env -> S.tp -> D.tp
 

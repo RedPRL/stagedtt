@@ -1,3 +1,1 @@
-def foo : type := type
-
-#quit
+#normalize (the ((x : type 0) → type 0) (λ x → x))

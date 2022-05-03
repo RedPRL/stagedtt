@@ -29,7 +29,8 @@ let commands =
 let keywords =
   make_table 0 [
     ("def", DEF);
-    ("type", TYPE)
+    ("type", TYPE);
+    ("the", THE)
   ]
 
 (* Some Lexing Utilities *)
@@ -55,6 +56,7 @@ let whitespace =
 
 let atom_initial =
   [^ '0'-'9' '-'     '?' '!' '(' ')' '[' ']' '{' '}' '<' '>' '.' '#' '\\' '@' '*' '^' ':' ',' ';' '|' '=' '"' '`' ' ' '\t' '\n' '\r']
+
 let atom_subsequent =
   [^                         '(' ')' '[' ']' '{' '}' '<' '>' '.' '#' '\\' '@' '*' '^' ':' ',' ';' '|' '=' '"'     ' ' '\t' '\n' '\r']
 let atom = atom_initial atom_subsequent*
@@ -110,6 +112,8 @@ and real_token = parse
     }
   | atom
     {
+      (* [TODO: Reed M, 02/05/2022] Actually disallow subscripts *)
+      (* See [NOTE: Pretty Printing + Renaming Variables] to see why we disallow numeric unicode subscripts. *)
       let input = lexeme lexbuf in
       match Hashtbl.find keywords input with
       | tok -> tok

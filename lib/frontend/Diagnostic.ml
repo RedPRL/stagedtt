@@ -7,11 +7,12 @@ type severity =
 
 (* [TODO: Reed M, 02/05/2022] Integrate this into the diagnostic system *)
 type note = 
-  { source_code : string;
-    row : int;
-    start_col : int;
-    end_col : int;
-    note : string }
+  | SourceNote of {source_code : string;
+                   row : int;
+                   start_col : int;
+                   end_col : int;
+                   note : string }
+  | HelpNote of string
 
 type cause =
   { filename : string;
@@ -28,10 +29,14 @@ type t =
 let cause ~filename ~row ~column =
   { filename; row; column; notes = Emp }
 
+
 let note ~source_code ?row ?(start_col = 0) ?end_col ~note cause =
   let end_col = Option.value end_col ~default:(String.length source_code) in
   let row = Option.value row ~default:cause.row in
-  { cause with notes = Snoc(cause.notes, { source_code; row; start_col; end_col; note }) }
+  { cause with notes = Snoc(cause.notes, SourceNote { source_code; row; start_col; end_col; note }) }
+
+let help str cause =
+  { cause with notes = Snoc(cause.notes, HelpNote str) }
 
 let info ?cause ~code message =
   { code; severity = Info; message; cause }
@@ -48,32 +53,38 @@ let pp_severity fmt =
   | Warning -> Format.fprintf fmt "Warning"
   | Error -> Format.fprintf fmt "Error"
 
-let pp_note fmt {source_code; row; start_col; end_col; note} =
-  let row_digits = 1 + (int_of_float @@ Float.log10 (float_of_int row)) in
-  (* NOTE: The formatting here is complicated enough that it warrants
-     using the Format.pp_print family of functions *)
-  Format.pp_print_string fmt (String.make row_digits ' ');
-  Format.pp_print_string fmt " |";
-  Format.pp_print_newline fmt ();
+let pp_note fmt  =
+  function
+  | SourceNote {source_code; row; start_col; end_col; note} ->
+    let row_digits = 1 + (int_of_float @@ Float.log10 (float_of_int row)) in
+    (* NOTE: The formatting here is complicated enough that it warrants
+       using the Format.pp_print family of functions *)
+    Format.pp_print_string fmt (String.make row_digits ' ');
+    Format.pp_print_string fmt " |";
+    Format.pp_print_newline fmt ();
 
-  Format.pp_print_int fmt row;
-  Format.pp_print_string fmt " |     ";
-  Format.pp_print_string fmt source_code;
-  Format.pp_print_newline fmt ();
+    Format.pp_print_int fmt row;
+    Format.pp_print_string fmt " |     ";
+    Format.pp_print_string fmt source_code;
+    Format.pp_print_newline fmt ();
 
-  Format.pp_print_string fmt (String.make row_digits ' ');
-  Format.pp_print_string fmt " |     ";
-  Format.pp_print_string fmt (String.make start_col ' ');
-  Format.pp_print_string fmt (String.make (end_col - start_col) '^');
-  Format.pp_print_char fmt ' ';
-  Format.pp_print_string fmt note
+    Format.pp_print_string fmt (String.make row_digits ' ');
+    Format.pp_print_string fmt " |     ";
+    Format.pp_print_string fmt (String.make start_col ' ');
+    Format.pp_print_string fmt (String.make (end_col - start_col) '^');
+    Format.pp_print_char fmt ' ';
+    Format.pp_print_string fmt note
+  | HelpNote help -> 
+    (* [TODO: Reed M, 02/05/2022] When we have the nicer alignment, update this *)
+    Format.fprintf fmt "Help:@. @[<h 2>@ %s]" help
 
 let pp_cause fmt {filename; row; column; notes} =
   Format.fprintf fmt "@[<h 2>--> %s:%d:%d@]@.@[<h>%a@]"  
     filename
     row
     column
-    (* [TODO: Reed M, 02/05/2022] Better separation for multiple causes *)
+    (* [TODO: Reed M, 02/05/2022] Better separation for multiple notes *)
+    (* [TODO: Reed M, 02/05/2022] Better Alignment for multiple notes *)
     (Format.pp_print_list pp_note) (BwdLabels.to_list notes)
 
 let pp fmt {code; severity; message; cause} =

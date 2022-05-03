@@ -30,9 +30,9 @@ open struct
 
   (* [TODO: Reed M, 28/04/2022] Can we use Lazy.force_val here? *)
   let unfold (tm : D.t) : D.t =
-    match get_mode(), tm with
-    | Full, D.Neu { hd = D.Global(_,v); _ } -> Lazy.force v
-    | _, tm -> tm
+    match get_mode() with
+    | Full -> Eval.unfold tm
+    | _ -> tm
 
   let bind_var (f : D.t -> 'a) : 'a =
     let arg = D.local (Eff.read()).size in
