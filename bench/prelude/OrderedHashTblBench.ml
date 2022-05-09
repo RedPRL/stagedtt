@@ -7,7 +7,7 @@ module OTbl = OrderedHashTbl.Make(String)
 let init_ordered_table size () =
   let tbl = OTbl.create size in
   for i=0 to size do
-    OTbl.add (Int.to_string i) i tbl
+    OTbl.push (Int.to_string i) i tbl
   done;
   tbl
 
@@ -24,7 +24,7 @@ let test_create_ordered_tbl size =
   Staged.stage @@ fun () ->
   let tbl = OTbl.create size in
   for i=0 to size do
-    OTbl.add (Int.to_string i) i tbl
+    OTbl.push (Int.to_string i) i tbl
   done
 
 let test_create_stdlib_tbl size =

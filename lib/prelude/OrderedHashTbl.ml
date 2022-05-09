@@ -16,11 +16,10 @@ sig
 
   val create : int -> 'a t
 
-  val add : key -> 'a -> 'a t -> unit
+  val push : key -> 'a -> 'a t -> unit
+  val pop : 'a t -> key * 'a
   val get : key -> 'a t -> 'a option
   val get_idx : key -> 'a t -> int option
-  val pop : 'a t -> key * 'a
-
 end
 
 (** Ordered Hash Tables ala Hettinger. *)
@@ -31,15 +30,20 @@ struct
   type 'a entry = {
     hash : int;
     key : key;
-    value : 'a
+    value : 'a;
+    shadows  : int
   }
+
+  let free_slot = -1
 
   (* [HACK: Uninitialized Entries] We should probably handle this inside of resize... *)
   type null = { null : int }
   let null : 'a entry =
-    { hash = -1;
+    { hash = free_slot;
       key = Obj.magic { null = 0 };
-      value = Obj.magic { null = 0 } }
+      value = Obj.magic { null = 0 };
+      shadows = free_slot;
+    }
 
   type 'a t = {
     mutable num_entries : int;
@@ -53,7 +57,6 @@ struct
         [INVARIANT]: Must be a power of two. *)
   }
 
-  let free_slot = -1
 
   (** Find the next power of 2. f*)
   let next_power_of_2 n =
@@ -127,19 +130,34 @@ struct
         failwith "resize: the impossible happened@."
     done
 
-  let add key value tbl =
+  let push key value tbl =
     let hash = H.hash key in
     match hash_index hash tbl with
-    | Found { entry_index; _} ->
-      tbl.entries.(entry_index) <- { hash; key; value }
+    | Found { entry_index; hash_index } ->
+      (* A value is already bound to this key; we therefore we need to shadow it. *)
+      tbl.indices.(hash_index) <- tbl.num_entries;
+      tbl.entries.(tbl.num_entries) <- { hash; key; value; shadows = entry_index };
+      tbl.num_entries <- tbl.num_entries + 1;
     | Free hash_index ->
       tbl.indices.(hash_index) <- tbl.num_entries;
-      tbl.entries.(tbl.num_entries) <- { hash; key; value };
+      tbl.entries.(tbl.num_entries) <- { hash; key; value; shadows = free_slot };
       tbl.num_entries <- tbl.num_entries + 1;
       if should_resize tbl then
         resize tbl
       else
         ()
+
+  let pop tbl =
+    let last_entry = tbl.num_entries - 1 in
+    let entry = tbl.entries.(last_entry) in
+    match hash_index entry.hash tbl with
+    | Found {hash_index;_} ->
+      (* Make sure we don't keep a reference to the entry around. *)
+      tbl.entries.(last_entry) <- null;
+      tbl.num_entries <- last_entry;
+      tbl.indices.(hash_index) <- entry.shadows;
+      (entry.key, entry.value)
+    | _ -> failwith "pop: empty hashtable."
 
   let get key tbl =
     let hash = H.hash key in
@@ -155,16 +173,4 @@ struct
       Some entry_index
     | _ -> None
 
-  (** Remove the last entry added to the hashtable. *)
-  let pop tbl =
-    let last_entry = tbl.num_entries - 1 in
-    let entry = tbl.entries.(last_entry) in
-    match hash_index entry.hash tbl with
-    | Found {hash_index; _} ->
-      (* Make sure we don't keep a reference to the entry around. *)
-      tbl.entries.(last_entry) <- null;
-      tbl.num_entries <- last_entry;
-      tbl.indices.(hash_index) <- free_slot;
-      (entry.key, entry.value)
-    | _ -> failwith "pop: the impossible happened!"
 end
