@@ -1,4 +1,4 @@
 (library
   (name Core)
-  (libraries algaeff bwd ppx_deriving.show)
+  (libraries algaeff bwd stagedtt.prelude)
   (public_name stagedtt.core))

@@ -1,110 +1,87 @@
-open Bwd
+open Prelude
 
 module rec Syntax : sig
   type t =
     | Local of int
     (** DeBruijin-Indexed variables. *)
-    | Global of string * Domain.t Lazy.t
+    | Global of Ident.t * Domain.t Lazy.t
 
-    | Lam of string * t
+    | Lam of Ident.t * t
     | Ap of t * t
-
-    | Struct of (string * t) list
-    | Proj of t * string
 
     | Quote of t
     | Splice of t
 
     | CodePi of t * t
-    | CodeSign of (string * t) list
     | CodeUniv of int
 
   and tp =
     | TpVar of int
     (** DeBruijin-Indexed type variables.
         These are mainly used during grafting. *)
-    | Pi of tp * string * tp
-    | Sign of sign
+    | Pi of tp * Ident.t * tp
     | Expr of tp
     | El of t
     | Univ of int
-
-  and sign = (string * tp) list
 end =
 struct
   type t =
     | Local of int
-    | Global of string * Domain.t Lazy.t
+    | Global of Ident.t * Domain.t Lazy.t
 
-    | Lam of string * t
+    | Lam of Ident.t * t
     | Ap of t * t
-
-    | Struct of (string * t) list
-    | Proj of t * string
 
     | Quote of t
     | Splice of t
 
     | CodePi of t * t
-    | CodeSign of (string * t) list
     | CodeUniv of int
 
   and tp =
     | TpVar of int
-    | Pi of tp * string * tp
-    | Sign of sign
+    | Pi of tp * Ident.t * tp
     | Expr of tp
     | El of t
     | Univ of int
-
-  and sign = (string * tp) list
 end
 
 and Domain : sig
 
   (** {2 Values} *)
   type t =
-    | Lam of string * tm_clo
-    | Struct of (string * t) list
+    | Lam of Ident.t * tm_clo
     | Quote of t
     | Neu of neu
     | Code of code
 
   and code =
     | CodePi of t * t
-    | CodeSign of (string * t) list
     | CodeUniv of int
 
   (** {2 Types} *)
   and tp =
-    | Pi of tp * string * tp_clo
-    | Sign of sign
+    | Pi of tp * Ident.t * tp_clo
     | Univ of int
     | Expr of tp
     | El of code
     | ElNeu of neu
-
-  and sign =
-    | Field of string * tp * Syntax.sign clo
-    | Empty
 
   (** {2 Neutrals} *)
   and neu = { hd : hd; spine : frm list }
 
   and hd =
     | Local of int
-    | Global of string * t Lazy.t
+    | Global of Ident.t * t Lazy.t
 
   and frm =
     | Ap of t
-    | Proj of string
     | Splice
 
   (** {2 Closures} *)
   and 'a clo = Clo of 'a * env
   and tp_clo = Syntax.tp clo
   and tm_clo = Syntax.t clo
-  and sign_clo = Syntax.sign clo
 
   (** {2 Environments} *)
   and env
@@ -141,44 +118,35 @@ and Domain : sig
 end =
 struct
   type t =
-    | Lam of string * tm_clo
-    | Struct of (string * t) list
+    | Lam of Ident.t * tm_clo
     | Quote of t
     | Neu of neu
     | Code of code
 
   and code =
     | CodePi of t * t
-    | CodeSign of (string * t) list
     | CodeUniv of int
 
   and tp =
-    | Pi of tp * string * tp_clo
-    | Sign of sign
+    | Pi of tp * Ident.t * tp_clo
     | Univ of int
     | Expr of tp
     | El of code
     | ElNeu of neu
 
-  and sign =
-    | Field of string * tp * Syntax.sign clo
-    | Empty
-
   and neu = { hd : hd; spine : frm list }
 
   and hd =
     | Local of int
-    | Global of string * t Lazy.t
+    | Global of Ident.t * t Lazy.t
 
   and frm =
     | Ap of t
-    | Proj of string
     | Splice
 
   and 'a clo = Clo of 'a * env
   and tp_clo = Syntax.tp clo
   and tm_clo = Syntax.t clo
-  and sign_clo = Syntax.sign clo
 
   (* [NOTE: Environment Sizes]
      We often have to compute the size of an environment when performing various grafting
@@ -207,7 +175,7 @@ struct
         tp_size = 0 }
 
     let lookup_idx env idx =
-      BwdLabels.nth_opt env.locals idx
+      Bwd.nth_opt env.locals idx
 
     let lookup_tp_idx env idx =
       BwdLabels.nth_opt env.tp_locals idx

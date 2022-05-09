@@ -1,3 +1,5 @@
+open Prelude
+
 type env
 type 'a printer = env -> Format.formatter -> 'a -> unit
 
@@ -20,7 +22,7 @@ val isolated : env -> env
 val isolate_left : Prec.t -> env -> env
 val isolate_right : Prec.t -> env -> env
 
-val bind_var : string -> env -> string * env
+val bind_var : Ident.t -> env -> string * env
 val var : int printer
 val lvl : int printer
 

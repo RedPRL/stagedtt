@@ -94,6 +94,8 @@ and real_token = parse
     { RIGHT_ARROW }
  | ':'
     { COLON }
+ | "::"
+    { COLON_COLON }
   | ":="
     { COLON_EQUALS }
   (* Delimiters *)
@@ -101,6 +103,16 @@ and real_token = parse
     { LPR }
   | ')'
     { RPR }
+  | '['
+    { LSQ }
+  | ']'
+    { RSQ }
+  | "↑["
+    { UP_LSQ }
+  | "⇑["
+    { DOUBLE_UP_LSQ }
+  | "↓["
+    { DOWN_LSQ }
   | number
     { NUMERAL (int_of_string (Lexing.lexeme lexbuf)) }
   | "#" atom_subsequent+

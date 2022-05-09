@@ -18,17 +18,17 @@ let not_implemented string =
 
 let exec_command : command -> status =
   function
-  | Declare _ ->
+  | Declare {ident; tp = Some tp; tm} ->
+    let (tp, _) = Refiner.infer_tp tp in
+    let vtp = Eval.eval_tp ~env:D.Env.empty tp in
+    let tm = Refiner.check tm vtp in
+    Continue
+  | Declare {ident; tp = None; tm} ->
     not_implemented "def"
   | Fail _ ->
     not_implemented "#fail"
-  | Normalize { tm } ->
-    Format.printf "Refining %a@." CS.dump tm;
-    let (tm, tp) = Refiner.infer tm in
-    Format.printf "Normalizing %a@." S.dump tm;
-    let nf = Quote.quote ~size:0 @@ Eval.eval ~env:D.Env.empty tm in
-    Format.printf "Normalized %a@." S.dump nf;
-    Continue
+  | Normalize _ ->
+    not_implemented "#normalize"
   | Stage _ ->
     not_implemented "#stage"
   | Print _ ->

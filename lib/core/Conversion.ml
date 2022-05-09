@@ -50,8 +50,6 @@ open struct
       equate_neu neu0 neu1
     | D.Lam (_, clo0), D.Lam (_, clo1) ->
       equate_tm_clo clo0 clo1
-    | D.Struct fields0, D.Struct fields1 ->
-      List.iter2 equate_field fields0 fields1
     | D.Quote v0, D.Quote v1 ->
       equate v0 v1
     | D.Code code0, D.Code code1 ->
@@ -80,8 +78,6 @@ open struct
     | D.Pi (base0, _, fam0), D.Pi (base1, _, fam1) ->
       equate_tp base0 base1;
       equate_tp_clo fam0 fam1
-    | D.Sign sign0, D.Sign sign1 ->
-      equate_sign sign0 sign1
     | D.Univ stage0, D.Univ stage1 when stage0 = stage1 ->
       ()
     | D.Expr tp0, D.Expr tp1 ->
@@ -92,14 +88,6 @@ open struct
       equate_neu neu0 neu1
     | tp0, tp1 -> equate_eta_tp tp0 tp1
 
-  and equate_sign (sign0 : D.sign) (sign1 : D.sign) : unit =
-    match sign0, sign1 with
-    | Empty, Empty -> ()
-    | Field (lbl0, tp0, sign0), Field (lbl1, tp1, sign1) when lbl0 = lbl1 ->
-      equate_tp tp0 tp1;
-      equate_sign_clo sign0 sign1
-    | _, _ -> raise NotConvertible
-
   (*******************************************************************************
    * Equating Codes *)
 
@@ -108,8 +96,6 @@ open struct
     | CodePi (base0, fam0), CodePi (base1, fam1) ->
       equate base0 base1;
       equate fam0 fam1
-    | CodeSign fields0, CodeSign fields1 ->
-      List.iter2 equate_field fields0 fields1
     | CodeUniv stage0, CodeUniv stage1 when stage0 = stage1 -> 
       ()
     | _ -> raise NotConvertible
@@ -158,8 +144,6 @@ open struct
     match frm0, frm1 with
     | D.Ap v0, D.Ap v1 ->
       equate v0 v1
-    | D.Proj lbl0, D.Proj lbl1 when lbl0 = lbl1 ->
-      ()
     | D.Splice, D.Splice ->
       ()
     | _ -> raise NotConvertible
@@ -176,9 +160,6 @@ open struct
     | D.Lam (_, clo) ->
       bind_var @@ fun arg ->
       equate_eta (D.push_frm neu0 (D.Ap arg) ~unfold:(fun v -> Eval.do_ap v arg)) (Eval.inst_tm_clo clo arg)
-    | D.Struct fields ->
-      fields |> List.iter @@ fun (lbl, vfield) ->
-      equate_eta (D.push_frm neu0 (D.Proj lbl) ~unfold:(fun v -> Eval.do_proj v lbl)) vfield
     | D.Quote v1 ->
       equate_eta (D.push_frm neu0 D.Splice ~unfold:Eval.do_splice) v1
     | _ -> raise NotConvertible
@@ -203,10 +184,6 @@ open struct
   and equate_tp_clo clo0 clo1 =
     bind_var @@ fun arg ->
     equate_tp (Eval.inst_tp_clo clo0 arg) (Eval.inst_tp_clo clo1 arg)
-
-  and equate_sign_clo clo0 clo1 =
-    bind_var @@ fun arg ->
-    equate_sign (Eval.inst_sign_clo clo0 arg) (Eval.inst_sign_clo clo1 arg)
 end
 
 (*******************************************************************************

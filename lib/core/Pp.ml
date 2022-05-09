@@ -1,3 +1,4 @@
+open Prelude
 open Bwd
 module StringMap = Map.Make (String)
 
@@ -96,23 +97,29 @@ let rec suffix str =
   | n -> (suffix str (n / 10)) ^ (subscript (n mod 10))
 
 let bind_var x env =
-  (* [NOTE: Pretty Printing + Renaming Variables]
-     In our benchmarking of cooltt, we've found that a /huge/ amount of time
-     can be spent renaming variables inside of the pretty printer. Therefore,
-     we take care to use a much faster algorithm here. However, this does come
-     with a drawback: we can't use numeric unicode subscripts like '₁' in identifiers. *)
-  match StringMap.find_opt x env.shadowed with
-  | Some n -> suffix x n, { env with shadowed = StringMap.add x (n + 1) env.shadowed }
-  | None -> x , { env with shadowed = StringMap.add x 1 env.shadowed }
+  match x with
+  | Ident.User path ->
+    let x = Ident.user_string path in
+    (* [NOTE: Pretty Printing + Renaming Variables]
+       In our benchmarking of cooltt, we've found that a /huge/ amount of time
+       can be spent renaming variables inside of the pretty printer. Therefore,
+       we take care to use a much faster algorithm here. However, this does come
+       with a drawback: we can't use numeric unicode subscripts like '₁' in identifiers. *)
+    begin
+      match StringMap.find_opt x env.shadowed with
+      | Some n -> suffix x n, { env with shadowed = StringMap.add x (n + 1) env.shadowed }
+      | None -> x , { env with shadowed = StringMap.add x 1 env.shadowed }
+    end
+  | Anon -> "_", env
 
 let var env fmt ix =
-  (* [TODO: Reed M, 03/05/2022] Conditional compilation *)
-  match BwdLabels.nth_opt env.vars ix with
+  (* [TODO: Reed M, 09/05/2022] This is a bad datastruture *)
+  match Bwd.nth_opt env.vars ix with
   | Some s -> Format.pp_print_string fmt s
   | _      -> failwith @@ Format.asprintf "Pp.env: index %d out of bounds" ix
 
 let lvl env fmt lvl =
-  Format.pp_print_string fmt @@ BwdLabels.nth env.vars (BwdLabels.length env.vars - lvl - 1)
+  Format.pp_print_string fmt @@ Bwd.nth env.vars (Bwd.length env.vars - lvl - 1)
 
 let parens classify env pp fmt t =
   if Prec.parens env.prec (classify t) then

@@ -1,4 +1,5 @@
 %{
+open Prelude
 open Command
 open CS
 
@@ -12,11 +13,11 @@ let ap_or_atomic =
 
 %token <int> NUMERAL
 %token <string> ATOM
-%token COLON COLON_EQUALS RIGHT_ARROW
+%token COLON COLON_COLON COLON_EQUALS RIGHT_ARROW
 (* Symbols *)
 %token LAMBDA
 (* Delimiters *)
-%token LPR RPR
+%token LPR RPR LSQ RSQ UP_LSQ DOWN_LSQ DOUBLE_UP_LSQ
 (* Keywords *)
 %token TYPE THE
 (* Commands *)
@@ -28,8 +29,14 @@ let ap_or_atomic =
   arrow
   atomic_term
   term
+%type <Ident.t>
+  name
 
 %%
+
+name:
+  | path = separated_nonempty_list(COLON_COLON, ATOM)
+    { User path }
 
 commands:
   | EOF
@@ -38,15 +45,15 @@ commands:
     { cmd :: cmds }
 
 command:
-  | DEF; ident = ATOM; COLON; tp = term; COLON_EQUALS tm = term
+  | DEF; ident = name; COLON; tp = term; COLON_EQUALS tm = term
     { Declare {ident; tp = Some tp; tm} }
-  | FAIL; ident = ATOM; tp = term; COLON_EQUALS tm = term
+  | FAIL; ident = name; tp = term; COLON_EQUALS tm = term
     { Declare {ident; tp = Some tp; tm} }
   | NORMALIZE; tm = term; 
     { Normalize {tm} }
   | STAGE; tm = term
     { Stage {tm} }
-  | PRINT; nm = ATOM;
+  | PRINT; nm = name;
     { Print nm }
   | QUIT
     { Quit }
@@ -58,15 +65,21 @@ term:
     { tm }
 
 arrow:
-  | LAMBDA; nms = list(ATOM); RIGHT_ARROW; tm = term
+  | LAMBDA; nms = list(name); RIGHT_ARROW; tm = term
     { Lam (nms, tm) }
-  | LPR; ident = ATOM; COLON; base = term; RPR; RIGHT_ARROW; fam = term
+  | LPR; ident = name; COLON; base = term; RPR; RIGHT_ARROW; fam = term
     { Pi (base, ident, fam) }
 
 atomic_term:
   | LPR; tm = term; RPR
     { tm }
-  | nm = ATOM
+  | DOUBLE_UP_LSQ; tm = term; RSQ
+    { Expr tm }
+  | UP_LSQ; tm = term; RSQ
+    { Quote tm }
+  | DOWN_LSQ; tm = term; RSQ
+    { Splice tm }
+  | nm = name
     { Var nm }
   | TYPE; stage = NUMERAL
     { Univ { stage } }

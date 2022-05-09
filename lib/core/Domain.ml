@@ -1,3 +1,4 @@
+open Prelude
 open Bwd
 
 include Data.Domain
@@ -39,7 +40,6 @@ end
 let classify_tm =
   function
   | Lam _ -> Prec.arrow
-  | Struct _ -> Prec.juxtaposition
   | Quote _ -> Prec.juxtaposition
   | Neu _ -> Prec.atom
   | Code _ -> Prec.juxtaposition
@@ -52,7 +52,6 @@ let rec pp env =
     Format.fprintf fmt "λ %s → %a"
       x
       (pp_clo S.pp env) clo
-  | Struct _ -> failwith "[FIXME] pp: We are going to rework structs"
 
   | Quote v ->
     Format.fprintf fmt "↑[ %a ]"
@@ -74,12 +73,12 @@ and pp_clo pp_a env fmt =
       | Emp -> env
       | Snoc (locals, v) ->
         let env = pp_locals env fmt locals in
-        let x, envx = Pp.bind_var "v" env in
+        let x, envx = Pp.bind_var (Ident.user "v") env in
         Format.fprintf fmt "%s = %a; " x (pp env) (Lazy.force v);
         envx in
     Format.pp_print_string fmt "[ ";
     let env = pp_locals env fmt locals in
-    let x, envx = Pp.bind_var "v" env in
+    let x, envx = Pp.bind_var (Ident.user "v") env in
     Format.fprintf fmt "%s = %a ⊢ %a ]"
       x
       (pp env) (Lazy.force v)
@@ -103,9 +102,6 @@ and pp_frm env fmt =
   | Ap v ->
     Format.fprintf fmt "ap %a"
       (pp env) v
-  | Proj lbl ->
-    Format.fprintf fmt "proj %s"
-      lbl
   | Splice ->
     Format.pp_print_string fmt "splice"
 
@@ -115,6 +111,5 @@ and pp_code env fmt =
     Format.fprintf fmt "Π %a %a"
       (pp env) base
       (pp env) fam
-  | CodeSign _ -> failwith "[FIXME] pp_code: Going to rework signatures"
   | CodeUniv stage ->
     Format.fprintf fmt "type %d" stage

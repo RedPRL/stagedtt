@@ -1,3 +1,5 @@
+open Prelude
+
 module S := Syntax
 module D := Domain
 
@@ -6,12 +8,9 @@ type 'a tb
 (** {1 Term Builders} *)
 module TB : sig
   (** {2 Pi} *)
-  val pi : ?ident:string -> S.tp tb -> (S.t tb -> S.tp tb) -> S.tp tb
-  val lam : ?ident:string -> (S.t tb -> S.t tb) -> S.t tb
+  val pi : ?ident:Ident.t -> S.tp tb -> (S.t tb -> S.tp tb) -> S.tp tb
+  val lam : ?ident:Ident.t -> (S.t tb -> S.t tb) -> S.t tb
   val ap : S.t tb -> S.t tb -> S.t tb
-
-  (** {2 Signatures} *)
-  val sign : (string * S.tp tb) list -> S.tp tb
 
   (** {2 Universes} *)
   val el : S.t tb -> S.tp tb

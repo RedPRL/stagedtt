@@ -22,8 +22,6 @@ open struct
       quote_neu neu
     | D.Lam (x, clo) ->
       S.Lam (x, quote_tm_clo clo)
-    | D.Struct fields ->
-      S.Struct (quote_fields fields)
     | D.Quote v ->
       S.Quote (quote v)
     | D.Code code ->
@@ -39,8 +37,6 @@ open struct
     function
     | D.Pi (base, x, fam) ->
       S.Pi (quote_tp base, x, quote_tp_clo fam)
-    | D.Sign sign ->
-      S.Sign (quote_sign sign)
     | D.Univ stage ->
       S.Univ stage
     | D.Expr tp ->
@@ -50,11 +46,6 @@ open struct
     | D.ElNeu neu ->
       S.El (quote_neu neu)
 
-  and quote_sign : D.sign -> S.sign =
-    function
-    | D.Empty -> []
-    | D.Field (lbl, tp, clo) -> (lbl, quote_tp tp) :: quote_sign_clo clo
-
   (*******************************************************************************
    * Quoting Codes *)
 
@@ -62,8 +53,6 @@ open struct
     function
     | D.CodePi (base, fam) ->
       S.CodePi (quote base, quote fam)
-    | D.CodeSign fields -> 
-      S.CodeSign (quote_fields fields)
     | D.CodeUniv stage ->
       S.CodeUniv stage
 
@@ -89,8 +78,6 @@ open struct
     | D.Ap arg ->
       let arg = quote arg in
       S.Ap (tm, arg)
-    | D.Proj lbl ->
-      S.Proj (tm, lbl)
     | D.Splice ->
       S.Splice tm
 
@@ -103,9 +90,6 @@ open struct
 
   and quote_tp_clo (clo : D.tp_clo) : S.tp =
     bind_var @@ fun arg -> quote_tp (Eval.inst_tp_clo clo arg)
-
-  and quote_sign_clo (clo : D.sign_clo) : S.sign =
-    bind_var @@ fun arg -> quote_sign (Eval.inst_sign_clo clo arg)
 end
 
 (*******************************************************************************

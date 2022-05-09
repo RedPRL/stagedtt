@@ -34,18 +34,12 @@ open struct
       D.Lam (x, clo body)
     | S.Ap (f, a) ->
       do_ap (eval f) (eval a)
-    | S.Struct fields ->
-      D.Struct (eval_fields fields)
-    | S.Proj (t, lbl) ->
-      do_proj (eval t) lbl
     | S.Quote t ->
       D.Quote (eval t)
     | S.Splice t ->
       do_splice (eval t)
     | S.CodePi (base, fam) ->
       D.Code (D.CodePi (eval base, eval fam))
-    | S.CodeSign fields ->
-      D.Code (D.CodeSign (eval_fields fields))
     | S.CodeUniv stage ->
       D.Code (D.CodeUniv stage)
 
@@ -60,19 +54,12 @@ open struct
       get_local_tp ix
     | S.Pi (base, x, fam) ->
       D.Pi (eval_tp base, x, clo fam)
-    | S.Sign sign ->
-      D.Sign (eval_sign sign)
     | S.Expr tp ->
       D.Expr (eval_tp tp)
     | S.El code ->
       do_el (eval code)
     | S.Univ stage ->
       D.Univ stage
-
-  and eval_sign : S.sign -> D.sign =
-    function
-    | [] -> D.Empty
-    | (lbl, tp) :: sign -> D.Field (lbl, eval_tp tp, clo sign)
 
   (** {1 Eliminators} *)
 
@@ -84,15 +71,6 @@ open struct
       D.Neu (D.push_frm neu (D.Ap arg) ~unfold:(fun fn -> do_ap fn arg))
     | _ ->
       raise @@ NbeFailed "Not a function in do_ap"
-
-  and do_proj (v : D.t) (lbl : string) =
-    match v with
-    | D.Struct fields ->
-      List.assoc lbl fields
-    | D.Neu neu ->
-      D.Neu (D.push_frm neu (D.Proj lbl) ~unfold:(fun v -> do_proj v lbl))
-    | _ ->
-      raise @@ NbeFailed "Not a struct in do_proj"
 
   and do_splice (v : D.t) =
     match v with
@@ -120,11 +98,6 @@ open struct
       Graft.value fam @@ fun fam ->
       Graft.build @@
       TB.pi (TB.el base) @@ fun x -> TB.el (TB.ap fam x)
-    | D.CodeSign fields ->
-      graft_tp @@
-      Graft.fields fields @@ fun fields ->
-      Graft.build @@
-      TB.sign @@ List.map (fun (lbl, field) -> (lbl, TB.el field)) fields
     | D.CodeUniv stage -> D.Univ stage
 
   (** {1 Closure Instantiation} *)
@@ -136,10 +109,6 @@ open struct
   and inst_tp_clo (clo : D.tp_clo) (x : D.t) : D.tp =
     match clo with
     | D.Clo (body, env) -> Eff.run ~env:(D.Env.extend env x) (fun () -> eval_tp body)
-
-  and inst_sign_clo (clo : D.sign_clo) (x : D.t) : D.sign =
-    match clo with
-    | D.Clo (body, env) -> Eff.run ~env:(D.Env.extend env x) (fun () -> eval_sign body)
 
   and graft_value (gtm : S.t Graft.t) =
     let tm, env = Graft.graft gtm in
@@ -166,10 +135,8 @@ let eval_tp ~env tp =
 
 let inst_tm_clo = inst_tm_clo
 let inst_tp_clo = inst_tp_clo
-let inst_sign_clo = inst_sign_clo
 
 let do_ap = do_ap
-let do_proj = do_proj
 let do_splice = do_splice
 let do_el = do_el
 

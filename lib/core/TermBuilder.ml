@@ -1,3 +1,4 @@
+open Prelude
 open Bwd
 module Bwd = BwdLabels
 
@@ -32,22 +33,17 @@ let scope (k : S.t tb -> 'a tb) : 'a tb =
 module TB =
 struct
   (** {2 Pi} *)
-  let pi ?(ident = "") base body =
+  let pi ?(ident = Ident.Anon) base body =
     fun env ->
       S.Pi (base env, ident, scope body env)
 
-  let lam ?(ident = "") body =
+  let lam ?(ident = Ident.Anon) body =
     fun env ->
     S.Lam (ident, scope body env)
 
   let ap fn arg =
     fun env ->
     S.Ap (fn env, arg env)
-
-  (** {2 Signatures} *)
-  let sign fields =
-    fun env ->
-    S.Sign (List.map (fun (lbl, field) -> (lbl, field env)) fields)
 
   (** {2 Universes} *)
   let el t =

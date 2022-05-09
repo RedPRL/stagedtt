@@ -1,5 +1,4 @@
-open Bwd
-module Bwd = BwdLabels
+open Prelude
 
 module CS = Syntax
 
@@ -9,27 +8,33 @@ module S = Core.Syntax
 module D = Core.Domain
 
 (** {1 Effects} *)
+type _ Effect.t +=
+  | Resolve : Ident.t -> (D.t Lazy.t * D.tp) Effect.t
+  | Diagnostic : string -> unit Effect.t
 
-type cell =
-  { name  : string;
-    tp    : D.tp;
-    value : D.t Lazy.t }
-
-type env =
-  { locals : cell bwd;
-    (* [NOTE: Caching Env Sizes]
-       We use a (reversed) linked list to store our local environments.
-       This has good implications for sharing, but comes with a fatal flaw:
-       computing the length is an O(n) operation, and it's something we do
-       a /lot/. Therefore, we cache the length of the env to avoid recomputing
-       it.
-
-       Invariant: Bwd.length locals = size *)
-    size   : int }
-
-let empty_env = { locals = Emp; size = 0 }
+let resolve_global nm =
+  Effect.perform (Resolve nm)
 
 open struct
+  type cell =
+    { name  : Ident.t;
+      tp    : D.tp;
+      value : D.t Lazy.t }
+
+  type env =
+    { locals : cell bwd;
+      (* [NOTE: Caching Env Sizes]
+         We use a (reversed) linked list to store our local environments.
+         This has good implications for sharing, but comes with a fatal flaw:
+         computing the length is an O(n) operation, and it's something we do
+         a /lot/. Therefore, we cache the length of the env to avoid recomputing
+         it.
+
+         Invariant: Bwd.length locals = size *)
+      size   : int }
+
+  let empty_env = { locals = Emp; size = 0 }
+
   module Eff = Algaeff.Reader.Make (struct type nonrec env = env end)
 
   let get_locals () =
@@ -54,7 +59,7 @@ open struct
     with E -> None
 
   let get_local idx =
-    BwdLabels.nth (get_locals ()) idx
+    Bwd.nth (get_locals ()) idx
 
   (** {2 Variable Binding} *)
 
@@ -102,9 +107,6 @@ open struct
       let fam = bind_var name vbase @@ fun _ ->
         check_tp fam ~stage
       in S.Pi (base, name, fam)
-    | CS.Sign sign ->
-      let sign = List.map (fun (lbl, field_tp) -> (lbl, check_tp field_tp ~stage)) sign in
-      S.Sign sign
     | tm ->
       let (tp, inferred_stage) = infer_tp tm in
       if stage = inferred_stage then
@@ -120,11 +122,9 @@ open struct
       let fam = bind_var ident vbase @@ fun _ ->
         check_tp fam ~stage:base_stage
       in S.Pi (base, ident, fam), base_stage
-    | CS.Sign sign ->
-      (* [FIXME: Reed M, 29/04/2022] Right now we assume that all the types of a signature live at
-         stage 0 so we can experiment more readily *)
-      let sign = List.map (fun (lbl, field) -> (lbl, check_tp field ~stage:0)) sign in
-      S.Sign sign, 0
+    | CS.Expr tp ->
+      let (tp, stage) = infer_tp tp in
+      S.Expr tp, stage + 1
     | CS.Univ {stage} ->
       S.Univ stage, stage
     | _ -> raise @@ TypeError "Type not inferrable"
@@ -138,6 +138,8 @@ open struct
       bind_var name base @@ fun arg ->
       let fib = inst_tp_clo fam (Lazy.force arg.value) in
       S.Lam(name, check (CS.Lam (names, body)) fib)
+    | CS.Quote tm, D.Expr tp ->
+      S.Quote (check tm tp)
     | _ ->
       let tm', tp' = infer tm in
       try Conversion.equate_tp ~size:0 tp tp'; tm' with
@@ -151,9 +153,10 @@ open struct
         match resolve_local nm with
         | Some ix ->
           let cell = get_local ix in
-          (* [TODO: Reed M, 02/05/2022] Do we unfold the local here? *)
           S.Local ix, cell.tp
-        | None -> raise @@ TypeError "Variable not in scope."
+        | None ->
+          let (v, tp) = resolve_global nm in
+          S.Global (nm, v), tp
       end
     | CS.Ap (t, ts) ->
       let rec check_args tp tms =
@@ -170,12 +173,23 @@ open struct
       let f_tm, f_tp = infer t in
       let tms, tp = check_args f_tp ts in
       S.apps f_tm tms, tp
+    | CS.Splice tm ->
+      let tm, tp = infer tm in
+      begin
+        match tp with
+        | D.Expr tp ->
+          S.Splice tm, tp
+        | _ -> raise @@ TypeError "Expected an expression type"
+      end
+    (* [TODO: Reed M, 03/05/2022] is this right? *)
+    | CS.Univ {stage} ->
+      S.CodeUniv stage, D.Univ stage
     | CS.Ann {tm; tp} ->
       let (tp, _) = infer_tp tp in
       let vtp = eval_tp tp in
       let tm = check tm vtp in
       (tm, vtp)
-    | _ -> raise @@ TypeError "Not inferrable"
+    | _ -> raise @@ TypeError (Format.asprintf "Not inferrable: %a" CS.dump tm)
 end
 
 let check_tp tp ~stage =

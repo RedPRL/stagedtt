@@ -1,4 +1,4 @@
-open Bwd
+open Prelude
 open Data
 
 module StringMap = Map.Make (String)
@@ -34,12 +34,9 @@ let classify_tm =
   | Global _ -> Prec.atom
   | Lam _ -> Prec.arrow
   | Ap _ -> Prec.juxtaposition
-  | Struct _ -> Prec.juxtaposition
-  | Proj _ -> Prec.proj
   | Quote _ -> Prec.quote
   | Splice _ -> Prec.splice
   | CodePi _ -> Prec.arrow
-  | CodeSign _ -> Prec.juxtaposition
   | CodeUniv _ -> Prec.atom
 
 let rec pp env =
@@ -49,7 +46,7 @@ let rec pp env =
     Pp.var env fmt ix
   | Global (nm, _) ->
     (* [TODO: Reed M, 02/05/2022] Support unfolding during pretty printing *)
-    Format.pp_print_string fmt nm
+    Ident.pp fmt nm
   | Lam (x, body) ->
     let x, env = Pp.bind_var x env in
     Format.fprintf fmt "λ %s → %a"
@@ -59,8 +56,6 @@ let rec pp env =
     Format.fprintf fmt "%a %a"
       (pp (Pp.left_of Prec.juxtaposition env)) f
       (pp (Pp.right_of Prec.juxtaposition env)) arg
-  | Struct _ -> failwith "[FIXME] pp: Structs are going to be reworked, no sense bothering"
-  | Proj _ -> failwith "[FIXME] pp: Structs are going to be reworked, no sense bothering"
   | Quote tm ->
     Format.fprintf fmt "↑[ %a ]"
       (pp (Pp.isolated env)) tm
@@ -71,7 +66,6 @@ let rec pp env =
     Format.fprintf fmt "Π %a %a"
       (pp (Pp.right_of Prec.juxtaposition env)) base
       (pp (Pp.right_of Prec.juxtaposition env)) fam
-  | CodeSign _ -> failwith "[FIXME] pp: Structs are going to be reworked, no sense bothering"
   | CodeUniv stage ->
     Format.fprintf fmt "type %d" stage
 
@@ -81,7 +75,8 @@ let rec dump fmt =
     Format.fprintf fmt "var[%d]"
       ix
   | Global (nm, _) ->
-    Format.fprintf fmt "global[%s]"
+    Format.fprintf fmt "global[%a]"
+      Ident.pp
       nm
   | Lam (_, body) ->
     Format.fprintf fmt "lam[%a]"
@@ -90,8 +85,6 @@ let rec dump fmt =
     Format.fprintf fmt "ap[%a, %a]"
       dump f
       dump a
-  | Struct _ -> failwith "[FIXME] dump: Structs will be reworked"
-  | Proj (_, _) -> failwith "[FIXME] dump: Structs will be reworked"
   | Quote tm ->
     Format.fprintf fmt "quote[%a]"
       dump tm
@@ -102,7 +95,6 @@ let rec dump fmt =
     Format.fprintf fmt "code-pi[%a, %a]"
       dump base
       dump fam
-  | CodeSign _ -> failwith "[FIXME] dump: Structs will be reworked"
   | CodeUniv stage ->
     Format.fprintf fmt "type[%d]"
       stage
