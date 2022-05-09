@@ -1,0 +1,4 @@
+(library
+  (name Prelude)
+  (libraries algaeff bwd containers yuujinchou)
+  (public_name stagedtt.prelude))

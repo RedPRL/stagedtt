@@ -1,0 +1,10 @@
+(executable
+  (name PreludeBench)
+  (libraries stagedtt.prelude bechamel notty.unix bechamel-notty))
+
+(rule
+ (alias bench)
+ (package stagedtt)
+ (deps (universe))
+ (action
+  (run ./PreludeBench.exe)))

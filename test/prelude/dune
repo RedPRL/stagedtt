@@ -1,0 +1,9 @@
+(executable
+  (name PreludeTests)
+  (libraries stagedtt.prelude alcotest))
+
+(rule
+ (alias runtest)
+ (package stagedtt)
+ (action
+  (run ./PreludeTests.exe)))

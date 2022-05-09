@@ -24,6 +24,11 @@
   (depends
     (bwd (>= 1.2))
     (cmdliner (>= 1.1))
+    (containers (>= 3.6))
     ppxlib
-    algaeff))
+    algaeff
+    ;; Tests
+    (alcotest (>= 1.5 :with-test))
+    (bechamel (>= 0.2 :with-test))
+    (bechamel-notty (>= 0.2 :with-test))))
 
