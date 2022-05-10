@@ -13,6 +13,9 @@ module NS = Scope.Make(struct type data = (D.t Lazy.t * D.tp) type hook = empty 
 let define path tp tm =
   NS.include_singleton (path, (tp, tm))
 
+let resolve path =
+  Effect.perform (Refiner.Resolve path)
+
 let run f =
   let open Effect.Deep in
   let handle_resolve_global () =

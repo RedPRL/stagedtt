@@ -90,7 +90,7 @@ let pp_cause fmt {filename; row; column; notes} =
     (Format.pp_print_list pp_note) (BwdLabels.to_list notes)
 
 let pp fmt {code; severity; message; cause} =
-  Format.fprintf fmt "@[<h>%a[%s]: %s@]@,%a"
+  Format.fprintf fmt "@[<h>%a[%s]: %s@]@,%a@."
     pp_severity severity
     code
     message

@@ -63,8 +63,8 @@ command:
     { Normalize {tm} }
   | STAGE; tm = term
     { Stage {tm} }
-  | PRINT; nm = name;
-    { Print nm }
+  | PRINT; path = path;
+    { Print path }
   | QUIT
     { Quit }
 

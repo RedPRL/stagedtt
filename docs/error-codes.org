@@ -1,2 +1,16 @@
-* E0001
+* Errors
+** E0001
 =stagedtt= encountered an unknown variable.
+** E0003
+=stagedtt= expected to fail due to a ~#fail~ directive, but
+did not.
+* Warnings 
+** W0001
+=stagedtt= encountered a feature that is under construction.
+* Info
+** I0001
+=stagedtt= encountered a ~#print~ directive.
+** I0002
+=stagedtt= normalized a term via the ~#normalize~ directive.
+** I0003
+=stagedtt= encountered an (expected) error while executing a ~#fail~ directive.
