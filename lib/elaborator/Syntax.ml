@@ -3,7 +3,7 @@ open Prelude
 (* [TODO: Reed M, 02/05/2022] Update to use cells *)
 type t =
   | Ann of { tm : t; tp : t }
-  | Var of Ident.t
+  | Var of Ident.path 
   | Pi of t * Ident.t * t
   | Lam of Ident.t list * t
   | Ap of t * t list
@@ -18,9 +18,9 @@ let rec dump fmt =
     Format.fprintf fmt "ann[%a, %a]"
       dump tm
       dump tp
-  | Var nm ->
+  | Var ident ->
     Format.fprintf fmt "var[%a]"
-      Ident.pp nm
+      Ident.pp_path ident
   | Pi (base, ident, fam) ->
     Format.fprintf fmt "pi[%a, %a, %a]"
       Ident.pp ident

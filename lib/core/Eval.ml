@@ -28,8 +28,8 @@ open struct
     function
     | S.Local ix ->
       get_local ix
-    | S.Global (nm, v) ->
-      D.global nm v
+    | S.Global (path, v) ->
+      D.global path v
     | S.Lam (x, body) ->
       D.Lam (x, clo body)
     | S.Ap (f, a) ->

@@ -26,6 +26,8 @@ type t =
     message : string;
     cause : cause option; }
 
+exception Fatal of t
+
 let cause ~filename ~row ~column =
   { filename; row; column; notes = Emp }
 

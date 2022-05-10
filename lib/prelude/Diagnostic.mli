@@ -3,8 +3,8 @@ type severity =
   | Warning
   | Error
 
-type note
 
+type note
 
 type cause
 type t
@@ -18,3 +18,5 @@ val warning : ?cause:cause -> code:string -> string -> t
 val error : ?cause:cause -> code:string -> string -> t 
 
 val pp : Format.formatter -> t -> unit
+
+exception Fatal of t

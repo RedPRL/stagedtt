@@ -13,7 +13,7 @@ let ap_or_atomic =
 
 %token <int> NUMERAL
 %token <string> ATOM
-%token COLON COLON_COLON COLON_EQUALS RIGHT_ARROW
+%token COLON COLON_COLON COLON_EQUALS RIGHT_ARROW UNDERSCORE
 (* Symbols *)
 %token LAMBDA
 (* Delimiters *)
@@ -29,14 +29,24 @@ let ap_or_atomic =
   arrow
   atomic_term
   term
+%type <Ident.path>
+  path
 %type <Ident.t>
   name
 
+%right RIGHT_ARROW
+
 %%
 
-name:
+path:
   | path = separated_nonempty_list(COLON_COLON, ATOM)
+    { path }
+
+name:
+  | path = path
     { User path }
+  | UNDERSCORE
+    { Anon }
 
 commands:
   | EOF
@@ -69,6 +79,8 @@ arrow:
     { Lam (nms, tm) }
   | LPR; ident = name; COLON; base = term; RPR; RIGHT_ARROW; fam = term
     { Pi (base, ident, fam) }
+  | base = term; RIGHT_ARROW; fam = term
+    { Pi (base, Anon, fam) }
 
 atomic_term:
   | LPR; tm = term; RPR
@@ -79,8 +91,8 @@ atomic_term:
     { Quote tm }
   | DOWN_LSQ; tm = term; RSQ
     { Splice tm }
-  | nm = name
-    { Var nm }
+  | path = path
+    { Var path }
   | TYPE; stage = NUMERAL
     { Univ { stage } }
   | THE; tp = atomic_term; tm = atomic_term 

@@ -44,9 +44,9 @@ let rec pp env =
   function
   | Local ix ->
     Pp.var env fmt ix
-  | Global (nm, _) ->
+  | Global (path, _) ->
     (* [TODO: Reed M, 02/05/2022] Support unfolding during pretty printing *)
-    Ident.pp fmt nm
+    Ident.pp_path fmt path
   | Lam (x, body) ->
     let x, env = Pp.bind_var x env in
     Format.fprintf fmt "λ %s → %a"
@@ -76,7 +76,7 @@ let rec dump fmt =
       ix
   | Global (nm, _) ->
     Format.fprintf fmt "global[%a]"
-      Ident.pp
+      Ident.pp_path
       nm
   | Lam (_, body) ->
     Format.fprintf fmt "lam[%a]"

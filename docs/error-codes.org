@@ -1,0 +1,2 @@
+* E0001
+=stagedtt= encountered an unknown variable.

@@ -92,10 +92,12 @@ and real_token = parse
     { LAMBDA }
   | "->" | "→"
     { RIGHT_ARROW }
- | ':'
-    { COLON }
- | "::"
+  | ':'
+     { COLON }
+  | "::"
     { COLON_COLON }
+  | '_'
+    { UNDERSCORE }
   | ":="
     { COLON_EQUALS }
   (* Delimiters *)

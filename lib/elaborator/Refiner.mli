@@ -10,11 +10,8 @@ module CS := Syntax
 (** {1 Effects} *)
 
 type _ Effect.t +=
-  | Resolve : Ident.t -> (D.t Lazy.t * D.tp) Effect.t
+  | Resolve : Yuujinchou.Trie.path -> (D.t Lazy.t * D.tp) Effect.t
   (** We invoke a {!constr:Resolve} effect every time we need to resolve some non-local identifier. *)
-  | Diagnostic : string -> unit Effect.t
-  (** Instead of using exceptions for errors, we use effects to unify info/warning/errors into the same construct,
-      which we refer to as a {!constr:Diagnostic} *)
 
 val check_tp : CS.t -> stage:int -> S.tp
 val infer_tp : CS.t -> S.tp * int

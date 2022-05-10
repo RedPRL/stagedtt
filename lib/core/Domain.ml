@@ -93,8 +93,8 @@ and pp_hd env fmt  =
   function
   | Local lvl ->
     Pp.lvl env fmt lvl
-  | Global (nm, _) ->
-    let x, _ = Pp.bind_var nm env in
+  | Global (path, _) ->
+    let x, _ = Pp.bind_var (User path) env in
     Format.pp_print_string fmt x
 
 and pp_frm env fmt =

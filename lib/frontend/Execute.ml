@@ -1,3 +1,4 @@
+open Prelude
 open Command
 open Elaborator
 open Core
@@ -47,5 +48,12 @@ let rec exec : command list -> unit =
 
 let load input =
   match Loader.load input with
-  | Ok cmds -> exec cmds
+  | Ok cmds ->
+    begin
+      try
+        Namespace.run @@ fun () ->
+        exec cmds
+      with Diagnostic.Fatal diag ->
+        Diagnostic.pp Format.err_formatter diag
+    end
   | Error diagnostic -> Diagnostic.pp Format.err_formatter diagnostic

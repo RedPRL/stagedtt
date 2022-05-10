@@ -4,7 +4,7 @@ module rec Syntax : sig
   type t =
     | Local of int
     (** DeBruijin-Indexed variables. *)
-    | Global of Ident.t * Domain.t Lazy.t
+    | Global of Yuujinchou.Trie.path * Domain.t Lazy.t
 
     | Lam of Ident.t * t
     | Ap of t * t
@@ -27,10 +27,11 @@ end =
 struct
   type t =
     | Local of int
-    | Global of Ident.t * Domain.t Lazy.t
+    | Global of Yuujinchou.Trie.path * Domain.t Lazy.t
 
     | Lam of Ident.t * t
     | Ap of t * t
+
 
     | Quote of t
     | Splice of t
@@ -72,7 +73,7 @@ and Domain : sig
 
   and hd =
     | Local of int
-    | Global of Ident.t * t Lazy.t
+    | Global of Yuujinchou.Trie.path * t Lazy.t
 
   and frm =
     | Ap of t
@@ -138,7 +139,7 @@ struct
 
   and hd =
     | Local of int
-    | Global of Ident.t * t Lazy.t
+    | Global of Yuujinchou.Trie.path * t Lazy.t
 
   and frm =
     | Ap of t

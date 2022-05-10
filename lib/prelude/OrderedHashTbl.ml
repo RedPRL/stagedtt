@@ -1,3 +1,4 @@
+open Bwd
 open Containers
 
 (* Ordered Hash Tables ala Hettinger.
@@ -16,10 +17,20 @@ sig
 
   val create : int -> 'a t
 
+  val size : 'a t -> int
+
   val push : key -> 'a -> 'a t -> unit
   val pop : 'a t -> key * 'a
-  val get : key -> 'a t -> 'a option
-  val get_idx : key -> 'a t -> int option
+  val scope : key -> 'a -> 'a t -> (unit -> 'r) -> 'r
+
+  val peek : 'a t -> key * 'a
+  val find : key -> 'a t -> 'a option
+  val find_idx_of : key -> 'a t -> int option
+
+  val nth : int -> 'a t -> key * 'a
+
+  val values : 'a t -> 'a bwd
+  val values_with : 'a t -> ('a -> 'b) -> 'b bwd
 end
 
 (** Ordered Hash Tables ala Hettinger. *)
@@ -77,6 +88,9 @@ struct
       index_size = size;
       indices = Array.make n free_slot;
     }
+
+  let size tbl =
+    tbl.num_entries
 
   type index =
     | Free of int
@@ -159,18 +173,47 @@ struct
       (entry.key, entry.value)
     | _ -> failwith "pop: empty hashtable."
 
-  let get key tbl =
+  let scope key value tbl fn =
+    push key value tbl;
+    let res = fn () in
+    let _ = pop tbl in
+    res
+
+  let peek tbl =
+    let entry = tbl.entries.(tbl.num_entries - 1) in
+    (entry.key, entry.value)
+
+  let find key tbl =
     let hash = H.hash key in
     match hash_index hash tbl with
     | Found { entry_index;_} ->
       Some (tbl.entries.(entry_index).value)
     | Free _ -> None
 
-  let get_idx key tbl =
+  let find_idx_of key tbl =
     let hash = H.hash key in
     match hash_index hash tbl with
     | Found { entry_index; _} ->
       Some entry_index
     | _ -> None
 
+  let nth n tbl =
+    let entry = tbl.entries.(tbl.num_entries - n - 1) in
+    (entry.key, entry.value)
+
+  let values tbl =
+    let rec go i acc =
+      if i < tbl.num_entries then
+        go (i + 1) (Snoc (acc, tbl.entries.(i).value))
+      else
+        acc
+    in go 0 Emp
+
+  let values_with tbl proj =
+    let rec go i acc =
+      if i < tbl.num_entries then
+        go (i + 1) (Snoc (acc, proj @@ tbl.entries.(i).value))
+      else
+        acc
+    in go 0 Emp
 end

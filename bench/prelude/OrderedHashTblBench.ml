@@ -40,7 +40,7 @@ let test_lookup_ordered_tbl size =
   Test.make_with_resource ~name:"lookup ordered" Test.uniq ~allocate:(init_ordered_table size) ~free:(fun _ -> ()) @@
   Staged.stage @@ fun tbl ->
   for i=0 to size do
-    ignore @@ OTbl.get (Int.to_string i) tbl
+    ignore @@ OTbl.find (Int.to_string i) tbl
   done
 
 let test_lookup_stdlib_tbl size =

@@ -1,1 +1,1 @@
-#normalize (the ((x : type 0) → type 0) (λ x → x))
+def test : type 0 → type 0 := λ x → asdf

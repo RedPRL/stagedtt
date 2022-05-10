@@ -1,3 +1,5 @@
+open Prelude
+
 let error_cause (span : Lex.span) ~note =
   let filename = span.start.pos_fname in
   let row = span.start.pos_lnum in
