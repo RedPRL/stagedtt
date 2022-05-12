@@ -1,5 +1,7 @@
-* Stagedtt
+* 🪆 Stagedtt
 Stagedtt is an experimental implementation of a staged dependent type theory.
+
+⚠ =stagedtt= is currently experimental, and we will break things!
 
 * Installation
 As =stagedtt= uses [[https://github.com/RedPRL/algaeff][algaeff]] for effects, we will need to use a version
@@ -19,3 +21,4 @@ Next, run the following 2 commands to install =stagedtt=
 * References
 This work is inspired by some of the work by András Kovács, namely
 [[https://github.com/AndrasKovacs/smalltt][smalltt]] and [[https://github.com/AndrasKovacs/staged][staged]].
+
