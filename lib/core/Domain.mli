@@ -6,8 +6,9 @@ type env = D.value_env
 type 'a clo = 'a D.vclo = 
   | Clo of 'a * env
 
-type tm_clo = D.syn clo
-type tp_clo = D.syn_tp clo
+type tm_clo = D.syntax clo
+type tp_clo = D.syntax_tp clo
+
 
 type t = D.value =
   | Lam of Ident.t * tm_clo
@@ -30,7 +31,10 @@ and neu = D.neu = { hd : hd; spine : frm list }
 
 and hd = D.hd = 
   | Local of int
-  | Global of Ident.path * t Lazy.t
+  | Global of global
+
+and global =
+  [ `Unstaged of Ident.path * D.value Lazy.t * D.inner Lazy.t ]
 
 and frm = D.frm =
   | Ap of t
@@ -38,8 +42,8 @@ and frm = D.frm =
 
 
 val local : int -> t
-val global : Ident.path -> t Lazy.t -> t 
-val push_frm : neu -> frm -> unfold:(t -> t) -> neu
+val global : Ident.path -> t Lazy.t -> D.inner Lazy.t -> t 
+val push_frm : neu -> frm -> unfold:(t -> t) -> stage:(D.inner -> D.inner)-> neu
 
 (** {1 Pretty Printing} *)
 val pp : t Pp.printer

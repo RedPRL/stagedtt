@@ -5,27 +5,31 @@ open Prelude
 
 (** {1 Syntax} *)
 
-type syn =
+type global =
+  [ `Unstaged of Ident.path * value Lazy.t * inner Lazy.t
+  | `Staged of Ident.path * value Lazy.t * inner Lazy.t * (int -> outer)
+  ]
+
+and syntax =
   | Local of int
-  | Global of Ident.path * value Lazy.t
-  | Staged of Ident.path * outer Lazy.t * value Lazy.t
+  | Global of global
 
-  | Lam of Ident.t * syn
-  | Ap of syn * syn
+  | Lam of Ident.t * syntax
+  | Ap of syntax * syntax
 
-  | Quote of syn
-  | Splice of syn
+  | Quote of syntax
+  | Splice of syntax
 
-  | CodePi of syn * syn
+  | CodePi of syntax * syntax
   | CodeUniv of int
 
-and syn_tp =
+and syntax_tp =
   | TpVar of int
   (** DeBruijin-Indexed type variables.
       These are used during grafting. *)
-  | Pi of syn_tp * Ident.t * syn_tp
-  | Expr of syn_tp
-  | El of syn
+  | Pi of syntax_tp * Ident.t * syntax_tp
+  | Expr of syntax_tp
+  | El of syntax
   | Univ of int
 
 (** {1 Values} *)
@@ -51,7 +55,8 @@ and neu = { hd : hd; spine : frm list }
 
 and hd =
   | Local of int
-  | Global of Ident.path * value Lazy.t
+  | Global of [ `Unstaged of Ident.path * value Lazy.t * inner Lazy.t ]
+
 
 and frm =
   | Ap of value
@@ -59,8 +64,8 @@ and frm =
 
 and 'a vclo =
   | Clo of 'a * value_env
-and tp_vclo = syn_tp vclo
-and tm_vclo = syn vclo
+and tp_vclo = syntax_tp vclo
+and tm_vclo = syntax vclo
 
 and value_env = 
   { locals : (value Lazy.t) bwd;
@@ -78,8 +83,7 @@ and outer =
 
 and inner =
   | Local of int
-  | Global of Ident.path * value Lazy.t
-  | Staged of Ident.path * outer Lazy.t * value Lazy.t
+  | Global of global
 
   | Lam of Ident.t * inner
   | Ap of inner * inner
@@ -100,4 +104,4 @@ and stage_env =
   }
 
 and 'a sclo = Clo of 'a * stage_env
-and tm_sclo = syn sclo
+and tm_sclo = syntax sclo

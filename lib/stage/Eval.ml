@@ -2,8 +2,10 @@ open Prelude
 open Core
 
 module S = Syntax
+module D = Domain
 module I = Inner
 module O = Outer
+
 
 
 open struct
@@ -13,7 +15,6 @@ open struct
       current_stage : int }
 
   module Eff = Algaeff.Reader.Make (struct type nonrec env = env end)
-
 
   let impossible msg =
     Format.asprintf msg
@@ -63,37 +64,27 @@ open struct
     in
     Eff.scope extend k
 
+  let expand_outer_global (gbl : S.global) =
+    match gbl with
+    | `Unstaged _ ->
+      impossible "Encountered a global variable of stage 0 when evaluating outer syntax."
+    | `Staged (_, _, _, expand) ->
+      let stage = (Eff.read ()).goal_stage in
+      expand stage
+
   let with_locals locals k =
     Eff.scope (fun env -> { env with locals }) k
 
   let clo body =
     O.Clo (body, get_locals ())
 
-
   (* Evaluates all redexes, and return a piece of syntax of stage 'stage'. *)
   let rec eval_outer (tm : S.t) =
     match tm with
     | S.Local ix ->
       get_outer_local ix
-    | S.Global (_, _) ->
-      impossible "Encountered a global variable of stage 0 when evaluating outer syntax."
-    | S.Staged (_, unf, _) ->
-      (* [NOTE: Outer Staged Globals]
-         If we encounter a staged global at this point, we know that
-         it's stage is greater than our goal stage that we are evaluating to.
-         Therefore, the only sensible thing to do here is to unfold it's outer
-         syntax representation.
-
-         [TODO: Reed M, 11/05/2022]
-         In theory, we may not need to force an unfolding here, but this works for now.
-         For instance, if we have something like
-
-           \(x y -> x) ↑[...] some_global
-
-         Then we don't need to unfold 'some_global' at all. The fix here is to 
-         introduce a 'Staged' constructor to the outer values, and then lazily
-         apply eliminators, and only force the value if we actually need it. *)
-      Lazy.force unf
+    | S.Global gbl ->
+      expand_outer_global gbl
     | S.Lam (x, body) ->
       O.Lam (x, clo body)
     | S.Ap (f, a) ->
@@ -116,19 +107,8 @@ open struct
     match tm with
     | S.Local ix ->
       get_inner_local ix
-    | S.Global (path, unfold) ->
-      (* [NOTE: Unfolding Globals in Staging]
-         It may seem like we need to unfold this global, but recall
-         that all globals are at stage 0. As their unfoldings have already
-         been evaluated, all redexes at will already have been evaluated! *)
-      I.Global (path, unfold)
-    | S.Staged (path, sunf, vunf) ->
-      (* [NOTE: Inner Staged Globals]
-         Because we've already typechecked by this point, we are safe to assume
-         that this globals stage is less than or equal to the goal stage that
-         we are evaluating to. This means that we don't need to perform any
-         unfoldings. *)
-      I.Staged (path, sunf, vunf)
+    | S.Global gbl ->
+      I.Global gbl
     | S.Lam (x, body) ->
       I.Lam (x, bind_inner @@ fun () -> eval_inner body)
     | S.Ap (fn, a) ->
@@ -162,12 +142,18 @@ open struct
     | O.Clo (body, env) ->
       with_locals (O.Env.extend_outer env v) @@ fun () ->
       eval_outer body
-
 end
 
-let eval_inner ~stage ~tm_stage tm =
+let eval_inner ~tm_stage tm =
+  let env = {
+    locals = O.Env.empty;
+    goal_stage = tm_stage;
+    current_stage = tm_stage }
+  in Eff.run ~env @@ fun () -> eval_inner tm
+
+let eval_outer ~tm_stage tm stage =
   let env = {
     locals = O.Env.empty;
     goal_stage = stage;
     current_stage = tm_stage }
-  in Eff.run ~env @@ fun () -> eval_inner tm
+  in Eff.run ~env @@ fun () -> eval_outer tm

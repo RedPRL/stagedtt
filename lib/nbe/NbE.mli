@@ -5,8 +5,8 @@ module S := Syntax
 module D := Domain
 
 (** {1 Evaluation} *)
-val eval : env:D.env -> S.t -> D.t
-val eval_tp : env:D.env -> S.tp -> D.tp
+val eval : stage:int -> env:D.env -> S.t -> D.t
+val eval_tp : stage:int -> env:D.env -> S.tp -> D.tp
 
 val do_el : D.t -> D.tp
 

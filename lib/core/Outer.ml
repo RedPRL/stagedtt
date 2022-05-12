@@ -10,7 +10,7 @@ and env = D.stage_env =
     size : int }
 
 and 'a clo = 'a D.sclo = Clo of 'a * env
-and tm_clo = D.syn clo
+and tm_clo = D.syntax clo
 
 and t = D.outer =
   | Lam of Ident.t * tm_clo
@@ -32,7 +32,9 @@ struct
   let lookup_lvl env ix =
     Bwd.nth env.locals ix
 
-
   let size env =
     env.size
+
+  let from_vals locals size =
+    { locals; size }
 end

@@ -3,14 +3,15 @@ open TermBuilder
 
 module S = Syntax
 module D = Domain
+module I = Inner
 
 (** {1 Evaluation} *)
 val unfold : D.t -> D.t
-val eval : env:D.env -> S.t -> D.t
-val eval_tp : env:D.env -> S.tp -> D.tp
+val eval : stage:int -> env:D.env -> S.t -> D.t
+val eval_tp : stage:int -> env:D.env -> S.tp -> D.tp
 
 (** {1 Eliminators} *)
-val do_ap : D.t -> D.t -> D.t
+val do_ap : D.t -> D.t -> I.t -> D.t
 val do_splice : D.t -> D.t
 val do_el : D.t -> D.tp
 

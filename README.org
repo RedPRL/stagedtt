@@ -9,3 +9,10 @@ This will create a new [[https://opam.ocaml.org/doc/FAQ.html#What-is-a-quot-swit
 Next, run the following 2 commands to install =stagedtt=
 - ~eval $(opam env)~
 - ~opam install .~
+* Usage 
+#+BEGIN_SRC shell
+  stagedtt load examples/demo.stt
+#+END_SRC
+* References
+This work is inspired by some of the work by András Kovács, namely
+[[https://github.com/AndrasKovacs/smalltt][smalltt]] and [[https://github.com/AndrasKovacs/staged][staged]].

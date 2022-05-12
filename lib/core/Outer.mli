@@ -8,7 +8,7 @@ type staged = D.staged =
   | Outer of t
 
 and 'a clo = 'a D.sclo = Clo of 'a * env
-and tm_clo = D.syn clo
+and tm_clo = D.syntax clo
 
 and t = D.outer =
   | Lam of Ident.t * tm_clo
@@ -17,6 +17,9 @@ and t = D.outer =
 
 module Env : sig
   val empty : env
+
+  val from_vals : staged bwd -> int -> env
+
   val extend_inner : env -> D.inner -> env
   val extend_outer : env -> D.outer -> env
 

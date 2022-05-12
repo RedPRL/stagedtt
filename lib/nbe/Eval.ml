@@ -3,27 +3,37 @@ open TermBuilder
 
 module S = Syntax
 module D = Domain
-module O = Outer
 module I = Inner
+module O = Outer
 
-exception NbeFailed of string 
+exception NbeFailed of string
 
 open struct
-  module Eff = Algaeff.Reader.Make (struct type env = D.env end)
+  type env =
+    { locals : D.env;
+      stage : int }
+
+  module Eff = Algaeff.Reader.Make (struct type nonrec env = env end)
 
   let get_local ix =
-    match D.Env.lookup_idx (Eff.read ()) ix with
+    match D.Env.lookup_idx (Eff.read ()).locals ix with
     | Some v -> Lazy.force v
     | None -> raise @@ NbeFailed "Variable lookup out of scope!"
 
   let get_local_tp ix =
-    match D.Env.lookup_tp_idx (Eff.read ()) ix with
+    match D.Env.lookup_tp_idx (Eff.read ()).locals ix with
     | Some tp -> tp
     | None -> raise @@ NbeFailed "Variable lookup out of scope!"
 
   let clo body =
-    D.Clo (body, Eff.read())
+    D.Clo (body, (Eff.read()).locals)
 
+  let eval_inner tm =
+    let tm_stage = (Eff.read ()).stage in
+    Stage.eval_inner ~tm_stage tm
+
+  let with_locals locals k =
+    Eff.scope (fun env -> { env with locals }) k
 
   (** {1 Evaluating Terms} *)
 
@@ -31,14 +41,14 @@ open struct
     function
     | S.Local ix ->
       get_local ix
-    | S.Global (path, v) ->
-      D.global path v
-    | S.Staged (_, _, v) ->
+    | S.Global (`Unstaged (path, v, inner)) ->
+      D.global path v inner
+    | S.Global (`Staged (_, v, _, _)) ->
       Lazy.force v
     | S.Lam (x, body) ->
       D.Lam (x, clo body)
     | S.Ap (f, a) ->
-      do_ap (eval f) (eval a)
+      do_ap (eval f) (eval a) (eval_inner a)
     | S.Quote t ->
       D.Quote (eval t)
     | S.Splice (t) ->
@@ -68,12 +78,14 @@ open struct
 
   (** {1 Eliminators} *)
 
-  and do_ap (v : D.t) (arg : D.t) =
+  and do_ap (v : D.t) (arg : D.t) (iarg : I.t) =
     match v with
     | D.Lam (_, clo) ->
       inst_tm_clo clo arg
     | D.Neu neu ->
-      D.Neu (D.push_frm neu (D.Ap arg) ~unfold:(fun fn -> do_ap fn arg))
+      let unfold fn = do_ap fn arg iarg in
+      let stage fn = I.Ap (fn, iarg) in
+      D.Neu (D.push_frm neu (D.Ap arg) ~unfold ~stage)
     | _ ->
       raise @@ NbeFailed "Not a function in do_ap"
 
@@ -82,7 +94,9 @@ open struct
     | D.Quote t ->
       t
     | D.Neu neu ->
-      D.Neu (D.push_frm neu D.Splice ~unfold:do_splice)
+      let unfold = do_splice in
+      let stage tm = I.Splice tm in
+      D.Neu (D.push_frm neu D.Splice ~unfold ~stage)
     | _ ->
       raise @@ NbeFailed "Not a quoted value in do_splice"
 
@@ -109,19 +123,22 @@ open struct
 
   and inst_tm_clo (clo : D.tm_clo) (x : D.t) : D.t =
     match clo with
-    | D.Clo (body, env) -> Eff.run ~env:(D.Env.extend env x) (fun () -> eval body)
+    | D.Clo (body, env) ->
+      with_locals (D.Env.extend env x) @@ fun () -> eval body
 
   and inst_tp_clo (clo : D.tp_clo) (x : D.t) : D.tp =
     match clo with
-    | D.Clo (body, env) -> Eff.run ~env:(D.Env.extend env x) (fun () -> eval_tp body)
+    | D.Clo (body, env) ->
+      with_locals (D.Env.extend env x) @@ fun () ->
+      eval_tp body
 
   and graft_value (gtm : S.t Graft.t) =
     let tm, env = Graft.graft gtm in
-    Eff.run ~env @@ fun () -> eval tm
+    with_locals env @@ fun () -> eval tm
 
   and graft_tp (gtp : S.tp Graft.t) =
     let tp, env = Graft.graft gtp in
-    Eff.run ~env @@ fun () -> eval_tp tp
+    with_locals env @@ fun () -> eval_tp tp
 end
 
 (** {1 Public Interface} *)
@@ -129,13 +146,15 @@ end
 (* [TODO: Reed M, 28/04/2022] Can we use Lazy.force_val here? *)
 let unfold : D.t -> D.t =
   function
-  | D.Neu { hd = D.Global(_, v); _ } -> Lazy.force v
+  | D.Neu { hd = D.Global(`Unstaged (_, v, _)); _ } -> Lazy.force v
   | tm -> tm
 
-let eval ~env tm =
+let eval ~stage ~env tm =
+  let env = { stage; locals = env } in
   Eff.run ~env @@ fun () -> eval tm
 
-let eval_tp ~env tp =
+let eval_tp ~stage ~env tp =
+  let env = { stage; locals = env } in
   Eff.run ~env @@ fun () -> eval_tp tp
 
 let inst_tm_clo = inst_tm_clo

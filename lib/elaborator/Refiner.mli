@@ -2,13 +2,14 @@ open Prelude
 
 module S := Core.Syntax
 module D := Core.Domain
+module O := Core.Outer
 
 module CS := Syntax
 
 (** {1 Effects} *)
 
 type _ Effect.t +=
-  | Resolve : Ident.path -> (D.t Lazy.t * int * D.tp) Effect.t
+  | Resolve : Yuujinchou.Trie.path -> (S.global * int * D.tp) Effect.t
   (** We invoke a {!constr:Resolve} effect every time we need to resolve some non-local identifier. *)
 
 val check_tp : CS.t -> stage:int -> S.tp

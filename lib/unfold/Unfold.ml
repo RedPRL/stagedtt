@@ -2,10 +2,12 @@ open Core
 
 module D = Domain
 module I = Inner
+module O = Outer
 
 open struct
   type env =
     { size : int;
+      stage : int;
       (* [TODO: Reed M, 12/05/2022] This is waiting on the Matcher module of
          Yuujinchou. *)
       pattern : unit }
@@ -21,16 +23,20 @@ open struct
     let size = (Eff.read ()).size in 
     f (D.local (size - 1))
 
+  let eval ~env tm =
+    let stage = (Eff.read ()).stage in
+    NbE.eval ~stage ~env tm
+
   (* [TODO: Reed M, 12/05/2022] Actually check if we should unfold a name! *)
   let should_unfold _ =
     true
 
   let rec unfold v =
     match v with
-    | D.Neu { hd = D.Global(nm, unf); spine } ->
+    | D.Neu { hd = D.Global(`Unstaged (nm, unf, syn)); spine } ->
       if should_unfold nm then
         unfold (Lazy.force unf)
-      else D.Neu { hd = D.Global (nm, unf); spine = unfold_spine spine }
+      else D.Neu { hd = D.Global (`Unstaged (nm, unf, syn)); spine = unfold_spine spine }
     | D.Neu { hd; spine } ->
       D.Neu { hd; spine = unfold_spine spine }
     | D.Lam (x, clo) ->
@@ -43,9 +49,9 @@ open struct
 
   and unfold_clo clo v =
     match clo with
-    | Clo (tm, env) ->
-      let unf = unfold @@ NbE.eval ~env:(D.Env.extend env v) tm in
-      Clo (quote unf, env)
+    | D.Clo (tm, env) ->
+      let unf = unfold @@ eval ~env:(D.Env.extend env v) tm in
+      D.Clo (quote unf, env)
 
   and unfold_code code =
     match code with
@@ -64,12 +70,12 @@ open struct
 end
 
 
-let unfold_top v =
-  let env = { size = 0; pattern = () } in
+let unfold_top ~stage v =
+  let env = { stage; size = 0; pattern = () } in
   Eff.run ~env @@ fun () ->
   unfold v
 
-let unfold ~size v =
-  let env = { size; pattern = () } in
+let unfold ~stage ~size v =
+  let env = { stage; size; pattern = () } in
   Eff.run ~env @@ fun () ->
   unfold v

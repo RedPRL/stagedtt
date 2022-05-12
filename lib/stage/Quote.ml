@@ -20,10 +20,8 @@ open struct
     match tm with
     | I.Local lvl ->
       S.Local (quote_var lvl)
-    | I.Global (path, unf) ->
-      S.Global (path, unf)
-    | I.Staged (path, sunf, unf) ->
-      S.Staged (path, sunf, unf)
+    | I.Global gbl ->
+      S.Global gbl
     | I.Lam (x, body) ->
       S.Lam (x, bind_var @@ fun _ -> quote_inner body)
     | I.Ap (fn, arg) ->
@@ -38,5 +36,5 @@ open struct
       S.CodeUniv stage
 end
 
-let quote_inner tm =
-  Eff.run ~env:0 @@ fun () -> quote_inner tm
+let quote_inner ~size tm =
+  Eff.run ~env:size @@ fun () -> quote_inner tm

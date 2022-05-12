@@ -8,13 +8,11 @@ open Core
 
 module S = Core.Syntax
 module D = Core.Domain
+module O = Core.Outer
 
 (** {1 Effects} *)
 type _ Effect.t +=
-  | Resolve : Yuujinchou.Trie.path -> (D.t Lazy.t * int * D.tp) Effect.t
-
-let resolve_global nm =
-  Effect.perform (Resolve nm)
+  | Resolve : Yuujinchou.Trie.path -> (S.global * int * D.tp) Effect.t
 
 open struct
   type cell = { tp : D.tp; stage : int; level : int }
@@ -31,6 +29,9 @@ open struct
   module Eff = Algaeff.Reader.Make (struct type nonrec env = env end)
 
   (** {2 Variable Resolution} *)
+
+  let resolve_global nm =
+    Effect.perform (Resolve nm)
 
   let resolve_local ident =
     Ctx.find_idx_of (User ident) (Eff.read ()).names
@@ -62,8 +63,8 @@ open struct
     let ctx = (Eff.read ()).names in
     f ~size:(Ctx.size ctx)
 
-  let eval tm = lift_eval NbE.eval tm
-  let eval_tp tp = lift_eval NbE.eval_tp tp
+  let eval ~stage tm = lift_eval (NbE.eval ~stage) tm
+  let eval_tp ~stage tp = lift_eval (NbE.eval_tp ~stage) tp
   let quote tm = lift_quote NbE.quote tm
   let quote_tp tp = lift_quote NbE.quote_tp tp
 
@@ -129,8 +130,8 @@ open struct
   let rec check_tp (tm : CS.t) ~(stage : int) : S.tp =
     match tm with
     | CS.Pi (base, name, fam) ->
-      let base = check_tp base ~stage in
-      let vbase = eval_tp base in
+      let base = check_tp ~stage base in
+      let vbase = eval_tp ~stage base in
       let fam = bind_var name stage vbase @@ fun _ ->
         check_tp fam ~stage
       in S.Pi (base, name, fam)
@@ -145,7 +146,7 @@ open struct
     match tm with
     | CS.Pi (base, ident, fam) ->
       let base, base_stage = infer_tp base in
-      let vbase = eval_tp base in
+      let vbase = eval_tp ~stage:base_stage base in
       let fam = bind_var ident base_stage vbase @@ fun _ ->
         check_tp fam ~stage:base_stage
       in S.Pi (base, ident, fam), base_stage
@@ -163,13 +164,17 @@ open struct
     | CS.Lam ([], body), tp ->
       check body ~stage tp
     | CS.Lam (name :: names, body), D.Pi (base, _, fam) ->
+      Debug.print "Checking lambda@.";
       bind_var name stage base @@ fun arg ->
+      Debug.print "Bound var@.";
       let fib = inst_tp_clo fam arg in
+      Debug.print "Inst clo@.";
       let body = check (CS.Lam (names, body)) ~stage fib in
+      Debug.print "Checked body@.";
       S.Lam(name, body)
     | CS.Pi (base, x, fam), D.Univ stage ->
       let base = check base ~stage (D.Univ stage) in
-      let base_tp = NbE.do_el @@ eval base in
+      let base_tp = NbE.do_el @@ eval ~stage base in
       let fam = bind_var x stage base_tp @@ fun _ ->
         check fam ~stage (D.Univ stage)
       in
@@ -195,8 +200,8 @@ open struct
           let cell = get_local ix in
           S.Local ix, cell.stage, cell.tp
         | None ->
-          let (v, stage, tp) = resolve_global nm in
-          S.Global (nm, v), stage, tp
+          let (gbl, stage, tp) = resolve_global nm in
+          S.Global gbl, stage, tp
       end
     | CS.Ap (t, ts) ->
       let rec check_args stage tp tms =
@@ -204,7 +209,7 @@ open struct
         | tp, [] -> [], tp
         | (D.Pi (base, _, fam)), (tm :: tms) ->
           let tm = check tm ~stage base in
-          let vtm = eval tm in
+          let vtm = eval ~stage tm in
           let fib = inst_tp_clo fam vtm in
           let tms, ret = check_args stage fib tms in
           (tm :: tms, ret)
@@ -228,7 +233,7 @@ open struct
       S.CodeUniv stage, stage, D.Univ stage
     | CS.Ann {tm; tp} ->
       let (tp, stage) = infer_tp tp in
-      let vtp = eval_tp tp in
+      let vtp = eval_tp ~stage tp in
       let tm = check tm ~stage vtp in
       (tm, stage, vtp)
     | _ ->

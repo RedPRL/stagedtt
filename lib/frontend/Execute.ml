@@ -28,11 +28,11 @@ let nf_diagnostic tm nf =
       S.dump nf
   in Diagnostic.info ~code:"I0002" message
 
-let stage_diagnostic tm nf =
+let stage_diagnostic path st =
   let message =
     Format.asprintf "@[%a@ ~> %a@]"
-      S.dump tm
-      S.dump nf
+      Ident.pp_path path
+      S.dump st
   in Diagnostic.info ~code:"I0003" message
 
 let not_implemented string =
@@ -41,31 +41,57 @@ let not_implemented string =
   Diagnostic.pp Format.err_formatter diag;
   Continue
 
-let define ident tm stage tp =
-  match ident with
-  | Ident.User path -> 
-    Namespace.define path tm stage tp
-  | Ident.Anon -> ()
-
 let elab tp tm =
   match tp with
   | Some tp ->
+    Debug.print "Elaborating type %a@." CS.dump tp;
     let (tp, stage) = Refiner.infer_tp tp in
-    let vtp = NbE.eval_tp ~env:D.Env.empty tp in
+    Debug.print "Evaluating type %a@." S.dump_tp tp;
+    let vtp = NbE.eval_tp ~stage ~env:D.Env.empty tp in
+    Debug.print "Checking term %a@." CS.dump tm;
     let tm = Refiner.check tm ~stage vtp in
     (tm, stage, vtp)
   | None ->
     Refiner.infer tm
 
+let resolve_value path =
+  let (gbl, stage, vtp) = Namespace.resolve path in
+  match gbl with
+  | `Unstaged (_, v, _) -> v, stage, vtp
+  | `Staged (_, v, _, _) -> v, stage, vtp
+
+let resolve_inner path =
+  let (gbl, stage, vtp) = Namespace.resolve path in
+  match gbl with
+  | `Unstaged (_, _, iv) -> iv, stage, vtp
+  | `Staged (_, _, iv, _) -> iv, stage, vtp
+
 let exec_command : command -> status =
   function
-  | Declare {ident; tp; tm} ->
-    let (tm, stage, vtp) = elab tp tm in
+  | Declare {ident = User path; tp; tm} ->
+    let (tm, tm_stage, vtp) = elab tp tm in
     let vtm =
       lazy begin
-        NbE.eval ~env:D.Env.empty tm
+        NbE.eval ~stage:tm_stage ~env:D.Env.empty tm
       end in
-    define ident vtm stage vtp;
+    let itm =
+      lazy begin
+        Stage.eval_inner ~tm_stage tm
+      end
+    in
+    let expand =
+      Stage.eval_outer ~tm_stage tm
+    in
+    let gbl : S.global =
+      if tm_stage = 0 then
+        `Unstaged (path, vtm, itm)
+      else
+        `Staged (path, vtm, itm, expand)
+    in
+    Namespace.define path gbl tm_stage vtp;
+    Continue
+  | Declare {ident = Anon; tp; tm} ->
+    let (_, _, _) = elab tp tm in
     Continue
   | Fail {message; tp; tm} ->
     begin
@@ -88,24 +114,27 @@ let exec_command : command -> status =
     end;
     Continue
   | Normalize { tm } ->
-    let (tm, _, _) = Refiner.infer tm in
-    let vtm = Unfold.unfold_top @@ NbE.eval ~env:D.Env.empty tm in
+    let (tm, stage, _) = Refiner.infer tm in
+    let vtm = Unfold.unfold_top ~stage @@ NbE.eval ~stage ~env:D.Env.empty tm in
     let nf = NbE.quote ~size:0 vtm in
     Diagnostic.pp Format.std_formatter @@
     nf_diagnostic tm nf;
     Continue
-  | Stage { stage; tm } ->
-    let (tm, tm_stage, _) = Refiner.infer tm in
-    let stm = Stage.stage ~stage ~tm_stage tm in
+  | Stage path ->
+    let (iv, _, _) = resolve_inner path in
+    let tm = Stage.quote_inner ~size:0 (Lazy.force iv) in
     Diagnostic.pp Format.std_formatter @@
-    stage_diagnostic tm stm;
+    stage_diagnostic path tm;
     Continue
   | Print path ->
-    let (vtm, stage, vtp) = Namespace.resolve path in
+    let (vtm, stage, vtp) = resolve_value path in
     let tp = NbE.quote_tp ~size:0 vtp in
     let tm = NbE.quote ~size:0 (Lazy.force vtm) in
     Diagnostic.pp Format.std_formatter @@
     print_diagnostic path tm stage tp;
+    Continue
+  | Debug mode ->
+    Debug.debug_mode mode;
     Continue
   | Quit -> Quit
 

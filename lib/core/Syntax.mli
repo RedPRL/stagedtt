@@ -1,10 +1,14 @@
 open Prelude
 module D := Data
 
-type t = D.syn =
+type global =
+  [ `Unstaged of Ident.path * D.value Lazy.t * D.inner Lazy.t
+  | `Staged of Ident.path * D.value Lazy.t * D.inner Lazy.t * (int -> D.outer)
+  ]
+
+and t = D.syntax =
   | Local of int
-  | Global of Ident.path * D.value Lazy.t
-  | Staged of Ident.path * D.outer Lazy.t * D.value Lazy.t
+  | Global of global
 
   | Lam of Ident.t * t
   | Ap of t * t
@@ -15,7 +19,7 @@ type t = D.syn =
   | CodePi of t * t
   | CodeUniv of int
 
-type tp = D.syn_tp =
+type tp = D.syntax_tp =
   | TpVar of int
   (** DeBruijin-Indexed type variables.
       These are used during grafting. *)
@@ -35,3 +39,4 @@ val pp_tp : tp Pp.printer
 
 (** {1 Debug Printing} *)
 val dump : Format.formatter -> t -> unit
+val dump_tp : Format.formatter -> tp -> unit

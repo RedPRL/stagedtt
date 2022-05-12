@@ -67,7 +67,7 @@ open struct
   and quote_hd : D.hd -> S.t =
     function
     | D.Local lvl -> S.Local (quote_var lvl)
-    | D.Global (nm, v) -> S.Global (nm, v)
+    | D.Global gbl -> S.Global (gbl :> S.global)
 
   and quote_spine (tm : S.t) : D.frm list -> S.t =
     function

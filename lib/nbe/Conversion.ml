@@ -1,6 +1,7 @@
 open Core
 module S = Syntax
 module D = Domain
+module I = Inner 
 
 exception NotConvertible
 
@@ -35,10 +36,10 @@ open struct
     | Full -> Eval.unfold tm
     | _ -> tm
 
-  let bind_var (f : D.t -> 'a) : 'a =
-    let arg = D.local (Eff.read()).size in
+  let bind_var (f : D.t * I.t -> 'a) : 'a =
+    let lvl = (Eff.read()).size in
     Eff.scope (fun env -> {env with size = env.size + 1}) @@ fun () ->
-    f arg
+    f (D.local lvl, I.Local lvl)
 
   (*******************************************************************************
    * Equating Values *)
@@ -56,8 +57,8 @@ open struct
     | D.Code code0, D.Code code1 ->
       equate_code code0 code1
     (* We unfold globals when in Rigid mode before attempting eta-expansion *)
-    | D.Neu { hd = D.Global(_, unf); _ }, v
-    | v, D.Neu { hd = D.Global(_, unf); _ } when mode = Rigid ->
+    | D.Neu { hd = D.Global(`Unstaged (_, unf, _)); _ }, v
+    | v, D.Neu { hd = D.Global(`Unstaged (_, unf, _)); _ } when mode = Rigid ->
       equate (Lazy.force unf) v
     (* When we have a neutral, we need to attempt to eta-expand. *)
     | D.Neu neu, tm
@@ -107,7 +108,7 @@ open struct
   and equate_neu (neu0 : D.neu) (neu1 : D.neu) : unit =
     match neu0.hd, neu1.hd with
     | D.Local ix0, D.Local ix1 when ix0 = ix1 -> ()
-    | D.Global (nm0, v0), D.Global (nm1, v1) ->
+    | D.Global (`Unstaged (nm0, v0, _)), D.Global (`Unstaged (nm1, v1, _)) ->
       equate_globals nm0 nm1 v0 v1 neu0.spine neu1.spine
     | _ -> raise NotConvertible
 
@@ -159,10 +160,14 @@ open struct
       else
         raise NotConvertible
     | D.Lam (_, clo) ->
-      bind_var @@ fun arg ->
-      equate_eta (D.push_frm neu0 (D.Ap arg) ~unfold:(fun v -> Eval.do_ap v arg)) (Eval.inst_tm_clo clo arg)
+      bind_var @@ fun (arg, iarg) ->
+      let unfold vfn = Eval.do_ap vfn arg iarg in
+      let stage fn_tm = I.Ap (fn_tm, iarg) in
+      equate_eta (D.push_frm neu0 (D.Ap arg) ~unfold ~stage) (Eval.inst_tm_clo clo arg)
     | D.Quote v1 ->
-      equate_eta (D.push_frm neu0 D.Splice ~unfold:Eval.do_splice) v1
+      let unfold = Eval.do_splice in
+      let stage tm = I.Splice tm in
+      equate_eta (D.push_frm neu0 D.Splice ~unfold ~stage) v1
     | _ -> raise NotConvertible
 
   and equate_eta_tp (tp0 : D.tp) (tp1 : D.tp) =
@@ -179,11 +184,11 @@ open struct
   (** {1 Equating Closures} *)
 
   and equate_tm_clo clo0 clo1 =
-    bind_var @@ fun arg ->
+    bind_var @@ fun (arg, _) ->
     equate (Eval.inst_tm_clo clo0 arg) (Eval.inst_tm_clo clo1 arg)
 
   and equate_tp_clo clo0 clo1 =
-    bind_var @@ fun arg ->
+    bind_var @@ fun (arg, _) ->
     equate_tp (Eval.inst_tp_clo clo0 arg) (Eval.inst_tp_clo clo1 arg)
 end
 

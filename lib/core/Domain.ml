@@ -12,8 +12,8 @@ type env = D.value_env =
 
 and 'a clo = 'a D.vclo = 
   | Clo of 'a * env
-and tm_clo = D.syn D.vclo
-and tp_clo = D.syn_tp D.vclo
+and tm_clo = D.syntax D.vclo
+and tp_clo = D.syntax_tp D.vclo
 
 and t = D.value =
   | Lam of Ident.t * tm_clo
@@ -36,7 +36,10 @@ and neu = D.neu = { hd : hd; spine : frm list }
 
 and hd = D.hd = 
   | Local of int
-  | Global of Ident.path * t Lazy.t
+  | Global of global
+
+and global =
+  [ `Unstaged of Ident.path * D.value Lazy.t * D.inner Lazy.t ]
 
 and frm = D.frm =
   | Ap of t
@@ -45,13 +48,13 @@ and frm = D.frm =
 let local lvl =
   Neu { hd = Local lvl; spine = [] }
 
-let global nm v =
-  Neu { hd = Global (nm, v); spine = [] }
+let global nm v inner =
+  Neu { hd = Global (`Unstaged (nm, v, inner)); spine = [] }
 
-let push_frm (neu : neu) (frm : frm) ~(unfold : t -> t) : neu =
+let push_frm (neu : neu) (frm : frm) ~(unfold : t -> t) ~(stage : D.inner -> D.inner) : neu =
   match neu.hd with
-  | Global (nm, v) ->
-    { hd = Global (nm, Lazy.map unfold v); spine = frm :: neu.spine }
+  | Global (`Unstaged (nm, v, inner)) ->
+    { hd = Global (`Unstaged (nm, Lazy.map unfold v, Lazy.map stage inner)); spine = frm :: neu.spine }
   | _ ->
     { hd = neu.hd; spine = frm :: neu.spine }
 
@@ -139,7 +142,7 @@ and pp_hd env fmt  =
   function
   | Local lvl ->
     Pp.lvl env fmt lvl
-  | Global (path, _) ->
+  | Global (`Unstaged (path, _, _)) ->
     let x, _ = Pp.bind_var (User path) env in
     Format.pp_print_string fmt x
 

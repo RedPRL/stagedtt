@@ -4,14 +4,15 @@ open Prelude
 open Yuujinchou
 open Elaborator
 
+module S = Core.Syntax
 module D = Core.Domain
 
 type empty = |
 
-module NS = Scope.Make(struct type data = (D.t Lazy.t * int * D.tp) type hook = empty end)
+module NS = Scope.Make(struct type data = (S.global * int * D.tp) type hook = empty end)
 
-let define path tp stage tm =
-  NS.include_singleton (path, (tp, stage, tm))
+let define path gbl stage tp =
+  NS.include_singleton (path, (gbl, stage, tp))
 
 let resolve path =
   Effect.perform (Refiner.Resolve path)

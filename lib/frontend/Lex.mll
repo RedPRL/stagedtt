@@ -23,6 +23,7 @@ let commands =
     ("#normalize", NORMALIZE);
     ("#stage", STAGE);
     ("#print", PRINT);
+    ("#debug", DEBUG);
     ("#quit", QUIT);
   ]
 
@@ -117,6 +118,10 @@ and real_token = parse
     { DOWN_LSQ }
   | number
     { NUMERAL (int_of_string (Lexing.lexeme lexbuf)) }
+  | "on"
+    { FLAG true }
+  | "off"
+    { FLAG false }
   | "#" atom_subsequent+
     {
       let input = lexeme lexbuf in

@@ -13,6 +13,7 @@ let ap_or_atomic =
 
 %token <int> NUMERAL
 %token <string> ATOM
+%token <bool> FLAG
 %token COLON COLON_COLON COLON_EQUALS RIGHT_ARROW UNDERSCORE
 (* Symbols *)
 %token LAMBDA
@@ -21,7 +22,7 @@ let ap_or_atomic =
 (* Keywords *)
 %token TYPE THE
 (* Commands *)
-%token DEF NORMALIZE STAGE PRINT FAIL QUIT
+%token DEF NORMALIZE STAGE PRINT FAIL DEBUG QUIT
 %token EOF
 
 %start <Command.command list> commands
@@ -61,10 +62,12 @@ command:
     { Declare {ident; tp = Some tp; tm} }
   | NORMALIZE; tm = term; 
     { Normalize {tm} }
-  | STAGE; LSQ; stage = NUMERAL RSQ; tm = term
-    { Stage {stage; tm} }
+  | STAGE; path = path
+    { Stage path }
   | PRINT; path = path;
     { Print path }
+  | DEBUG; flag = FLAG;
+    { Debug flag }
   | QUIT
     { Quit }
 

@@ -3,10 +3,14 @@ module D = Data
 
 module StringMap = Map.Make (String)
 
-type t = D.syn =
+type global =
+  [ `Unstaged of Ident.path * D.value Lazy.t * D.inner Lazy.t
+  | `Staged of Ident.path * D.value Lazy.t * D.inner Lazy.t * (int -> D.outer)
+  ]
+
+and t = D.syntax =
   | Local of int
-  | Global of Ident.path * D.value Lazy.t
-  | Staged of Ident.path * D.outer Lazy.t * D.value Lazy.t
+  | Global of global
 
   | Lam of Ident.t * t
   | Ap of t * t
@@ -17,7 +21,7 @@ type t = D.syn =
   | CodePi of t * t
   | CodeUniv of int
 
-type tp = D.syn_tp =
+type tp = D.syntax_tp =
   | TpVar of int
   | Pi of tp * Ident.t * tp
   | Expr of tp
@@ -51,7 +55,6 @@ let classify_tm =
   function
   | Local _ -> Prec.atom
   | Global _ -> Prec.atom
-  | Staged _ -> Prec.atom
   | Lam _ -> Prec.arrow
   | Ap _ -> Prec.juxtaposition
   | Quote _ -> Prec.quote
@@ -72,10 +75,9 @@ let rec pp env =
   function
   | Local ix ->
     Pp.var env fmt ix
-  | Global (path, _) ->
-    Ident.pp_path fmt path
-  | Staged (path, _, _) ->
-    Ident.pp_path fmt path
+  | Global (`Unstaged (name, _, _))
+  | Global (`Staged (name, _, _, _)) ->
+    Ident.pp_path fmt name
   | Lam (x, body) ->
     let x, env = Pp.bind_var x env in
     Format.fprintf fmt "λ %s → %a"
@@ -124,11 +126,11 @@ let rec dump fmt : t -> unit =
   | Local ix ->
     Format.fprintf fmt "var[%d]"
       ix
-  | Global (nm, _) ->
+  | Global (`Unstaged (nm, _, _)) ->
     Format.fprintf fmt "global[%a]"
       Ident.pp_path
       nm
-  | Staged (nm, _, _) ->
+  | Global (`Staged (nm, _, _, _)) ->
     Format.fprintf fmt "staged[%a]"
       Ident.pp_path
       nm
@@ -151,4 +153,24 @@ let rec dump fmt : t -> unit =
       dump fam
   | CodeUniv stage ->
     Format.fprintf fmt "type[%d]"
+      stage
+
+and dump_tp fmt : tp -> unit =
+  function
+  | TpVar ix ->
+    Format.fprintf fmt "tpvar[%d]"
+      ix
+  | Pi (base, ident, fam) ->
+    Format.fprintf fmt "pi[%a, %a, %a]"
+      dump_tp base
+      Ident.pp ident
+      dump_tp fam
+  | Expr tp ->
+    Format.fprintf fmt "expr[%a]"
+      dump_tp tp
+  | El tm ->
+    Format.fprintf fmt "el[%a]"
+      dump tm
+  | Univ stage ->
+    Format.fprintf fmt "univ[%d]"
       stage
