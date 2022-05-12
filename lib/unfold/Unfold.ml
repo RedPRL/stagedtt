@@ -67,6 +67,29 @@ open struct
     match frm with
     | D.Ap v -> D.Ap (unfold v)
     | D.Splice -> D.Splice
+
+  and unfold_inner iv =
+    match iv with
+    | I.Local ix ->
+      I.Local ix
+    | I.Global gbl ->
+      begin
+        match gbl with
+        | `Unstaged (_, _, syn) -> Lazy.force syn
+        | `Staged (_, _, syn, _) -> Lazy.force syn
+      end
+    | I.Lam (x, body) ->
+      I.Lam (x, unfold_inner body)
+    | I.Ap (fn, arg) -> 
+      I.Ap (unfold_inner fn, unfold_inner arg)
+    | I.Quote tm ->
+      I.Quote (unfold_inner tm)
+    | I.Splice tm ->
+      I.Splice (unfold_inner tm)
+    | I.CodePi (base, fam) ->
+      I.CodePi (unfold_inner base, unfold_inner fam)
+    | I.CodeUniv stage ->
+      I.CodeUniv stage
 end
 
 
@@ -79,3 +102,6 @@ let unfold ~stage ~size v =
   let env = { stage; size; pattern = () } in
   Eff.run ~env @@ fun () ->
   unfold v
+
+let unfold_inner iv =
+  unfold_inner iv

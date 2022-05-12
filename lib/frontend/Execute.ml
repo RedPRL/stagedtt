@@ -122,7 +122,8 @@ let exec_command : command -> status =
     Continue
   | Stage path ->
     let (iv, _, _) = resolve_inner path in
-    let tm = Stage.quote_inner ~size:0 (Lazy.force iv) in
+    let iv = Unfold.unfold_inner @@ Lazy.force iv in
+    let tm = Stage.quote_inner ~size:0 iv in
     Diagnostic.pp Format.std_formatter @@
     stage_diagnostic path tm;
     Continue
