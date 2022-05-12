@@ -1,6 +1,4 @@
 open Prelude
-open Bwd
-module Bwd = BwdLabels
 
 module S = Syntax
 module D = Domain

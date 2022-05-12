@@ -22,6 +22,8 @@ open struct
       S.Local (quote_var lvl)
     | I.Global (path, unf) ->
       S.Global (path, unf)
+    | I.Staged (path, sunf, unf) ->
+      S.Staged (path, sunf, unf)
     | I.Lam (x, body) ->
       S.Lam (x, bind_var @@ fun _ -> quote_inner body)
     | I.Ap (fn, arg) ->

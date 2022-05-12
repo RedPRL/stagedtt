@@ -89,7 +89,7 @@ let exec_command : command -> status =
     Continue
   | Normalize { tm } ->
     let (tm, _, _) = Refiner.infer tm in
-    let vtm = NbE.eval ~env:D.Env.empty tm in
+    let vtm = Unfold.unfold_top @@ NbE.eval ~env:D.Env.empty tm in
     let nf = NbE.quote ~size:0 vtm in
     Diagnostic.pp Format.std_formatter @@
     nf_diagnostic tm nf;
