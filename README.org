@@ -1,3 +1,6 @@
+* Stagedtt
+Stagedtt is an experimental implementation of a staged dependent type theory.
+
 * Installation
 As =stagedtt= uses [[https://github.com/RedPRL/algaeff][algaeff]] for effects, we will need to use a version
 of the OCaml compiler that supports effects.
