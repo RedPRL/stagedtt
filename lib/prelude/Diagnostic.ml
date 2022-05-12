@@ -81,7 +81,7 @@ let pp_note fmt  =
 
     Format.pp_print_string fmt (String.make row_digits ' ');
     Format.pp_print_string fmt " |     ";
-    Format.pp_print_string fmt (String.make start_col ' ');
+    Format.pp_print_string fmt (String.make (start_col - 2) ' ');
     Format.pp_print_string fmt (String.make (end_col - start_col) '^');
     Format.pp_print_char fmt ' ';
     Format.pp_print_string fmt note
