@@ -12,11 +12,13 @@ type status =
   | Continue
   | Quit
 
-let print_diagnostic path tm tp =
+let print_diagnostic path tm stage tp =
   let message =
-    Format.asprintf "@[<hov>%a@ = %a@]"
+    Format.asprintf "@[<hov>%a@ : %a@ :[%d]= %a@]"
       Ident.pp_path path
-      S.dump tm
+      (S.pp_tp Pp.init) tp
+      stage
+      (S.pp Pp.init) tm
   in Diagnostic.info ~code:"I0001" message
 
 let nf_diagnostic tm nf =
@@ -26,42 +28,49 @@ let nf_diagnostic tm nf =
       S.dump nf
   in Diagnostic.info ~code:"I0002" message
 
+let stage_diagnostic tm nf =
+  let message =
+    Format.asprintf "@[%a@ ~> %a@]"
+      S.dump tm
+      S.dump nf
+  in Diagnostic.info ~code:"I0003" message
+
 let not_implemented string =
   let message = Format.asprintf "%s is not implemented yet!" string in
   let diag = Diagnostic.warning ~code:"W0001" message in
   Diagnostic.pp Format.err_formatter diag;
   Continue
 
-let define ident tm tp =
+let define ident tm stage tp =
   match ident with
   | Ident.User path -> 
-    Namespace.define path tm tp
+    Namespace.define path tm stage tp
   | Ident.Anon -> ()
 
 let elab tp tm =
   match tp with
   | Some tp ->
-    let (tp, _) = Refiner.infer_tp tp in
-    let vtp = Eval.eval_tp ~env:D.Env.empty tp in
-    let tm = Refiner.check tm vtp in
-    (tm, vtp)
+    let (tp, stage) = Refiner.infer_tp tp in
+    let vtp = NbE.eval_tp ~env:D.Env.empty tp in
+    let tm = Refiner.check tm ~stage vtp in
+    (tm, stage, vtp)
   | None ->
     Refiner.infer tm
 
 let exec_command : command -> status =
   function
   | Declare {ident; tp; tm} ->
-    let (tm, vtp) = elab tp tm in
+    let (tm, stage, vtp) = elab tp tm in
     let vtm =
       lazy begin
-        Eval.eval ~env:D.Env.empty tm
+        NbE.eval ~env:D.Env.empty tm
       end in
-    define ident vtm vtp;
+    define ident vtm stage vtp;
     Continue
   | Fail {message; tp; tm} ->
     begin
       try
-        let (_, _) = elab tp tm in
+        let (_, _, _) = elab tp tm in
         Diagnostic.pp Format.err_formatter @@
         Diagnostic.error ~code:"E0003" @@
         Format.asprintf "Expected failure '%s'." message
@@ -79,20 +88,24 @@ let exec_command : command -> status =
     end;
     Continue
   | Normalize { tm } ->
-    let (tm, vtp) = Refiner.infer tm in
-    let vtm = Eval.eval ~env:D.Env.empty tm in
-    let nf = Quote.quote ~size:0 vtm in
+    let (tm, _, _) = Refiner.infer tm in
+    let vtm = NbE.eval ~env:D.Env.empty tm in
+    let nf = NbE.quote ~size:0 vtm in
     Diagnostic.pp Format.std_formatter @@
     nf_diagnostic tm nf;
     Continue
-  | Stage _ ->
-    not_implemented "#stage"
-  | Print path ->
-    let (vtm, vtp) = Namespace.resolve path in
-    let tp = Quote.quote_tp ~size:0 vtp in
-    let tm = Quote.quote ~size:0 (Lazy.force vtm) in
+  | Stage { stage; tm } ->
+    let (tm, tm_stage, _) = Refiner.infer tm in
+    let stm = Stage.stage ~stage ~tm_stage tm in
     Diagnostic.pp Format.std_formatter @@
-    print_diagnostic path tm tp;
+    stage_diagnostic tm stm;
+    Continue
+  | Print path ->
+    let (vtm, stage, vtp) = Namespace.resolve path in
+    let tp = NbE.quote_tp ~size:0 vtp in
+    let tm = NbE.quote ~size:0 (Lazy.force vtm) in
+    Diagnostic.pp Format.std_formatter @@
+    print_diagnostic path tm stage tp;
     Continue
   | Quit -> Quit
 

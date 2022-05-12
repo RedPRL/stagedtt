@@ -8,10 +8,10 @@ module D = Core.Domain
 
 type empty = |
 
-module NS = Scope.Make(struct type data = (D.t Lazy.t * D.tp) type hook = empty end)
+module NS = Scope.Make(struct type data = (D.t Lazy.t * int * D.tp) type hook = empty end)
 
-let define path tp tm =
-  NS.include_singleton (path, (tp, tm))
+let define path tp stage tm =
+  NS.include_singleton (path, (tp, stage, tm))
 
 let resolve path =
   Effect.perform (Refiner.Resolve path)

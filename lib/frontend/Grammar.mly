@@ -61,8 +61,8 @@ command:
     { Declare {ident; tp = Some tp; tm} }
   | NORMALIZE; tm = term; 
     { Normalize {tm} }
-  | STAGE; tm = term
-    { Stage {tm} }
+  | STAGE; LSQ; stage = NUMERAL RSQ; tm = term
+    { Stage {stage; tm} }
   | PRINT; path = path;
     { Print path }
   | QUIT

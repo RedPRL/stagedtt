@@ -1,1 +1,7 @@
-def test : type 0 → type 0 := λ x → asdf
+def wow : type 0 := ↓[ the (⇑[ type 0 ]) ↑[ type 0 ] ]
+def hmmm : ⇑[ type 0 ] := ↑[ type 0 → wow ]
+def test : type 0 := ↓[ hmmm ]
+
+#stage[0] test
+-- 
+-- #normalize test

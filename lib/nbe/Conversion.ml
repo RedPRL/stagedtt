@@ -1,3 +1,4 @@
+open Core
 module S = Syntax
 module D = Domain
 

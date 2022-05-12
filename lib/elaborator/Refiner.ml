@@ -11,67 +11,127 @@ module D = Core.Domain
 
 (** {1 Effects} *)
 type _ Effect.t +=
-  | Resolve : Yuujinchou.Trie.path -> (D.t Lazy.t * D.tp) Effect.t
+  | Resolve : Yuujinchou.Trie.path -> (D.t Lazy.t * int * D.tp) Effect.t
 
 let resolve_global nm =
   Effect.perform (Resolve nm)
 
 open struct
-  type cell = { tp : D.tp; value : D.t Lazy.t }
+  type cell = { tp : D.tp; stage : int; level : int }
 
-  module Eff = Algaeff.Reader.Make (struct type nonrec env = cell Ctx.t end)
+  type env = 
+    { names : cell Ctx.t;
+      values : D.env }
+
+  let create_env size =
+    let names = Ctx.create size in
+    let values = D.Env.empty in
+    { names; values }
+
+  module Eff = Algaeff.Reader.Make (struct type nonrec env = env end)
 
   (** {2 Variable Resolution} *)
 
   let resolve_local ident =
-    Ctx.find_idx_of (User ident) (Eff.read ())
+    Ctx.find_idx_of (User ident) (Eff.read ()).names
 
   let get_local idx =
-    snd @@ Ctx.nth idx (Eff.read ())
+    snd @@ Ctx.nth idx (Eff.read ()).names
 
   (** {2 Variable Binding} *)
 
-  let bind_var name tp k =
-    let ctx = Eff.read () in
-    let value = Lazy.from_val @@ D.local (Ctx.size ctx) in
-    Ctx.scope name { tp; value } ctx @@ fun () ->
-    k (snd @@ Ctx.peek ctx)
+  let bind_var name stage tp k =
+    let ctx = (Eff.read ()).names in
+    let level = Ctx.size ctx in
+    let value = D.local level in
+    Eff.scope (fun env -> { env with values = D.Env.extend env.values value }) @@ fun () ->
+    Ctx.scope name { tp; stage; level } ctx @@ fun () ->
+    k value
+
+  let clo body =
+    let values = (Eff.read ()).values in
+    D.Clo (body, values)
 
   (** {1 Wrappers for NbE} *)
 
   let lift_eval (f : env:D.env -> 'a) : 'a =
-    let ctx = Eff.read () in
-    (* [FIXME: Reed M, 28/04/2022] This is bad! We should find a way to share
-       datastructures here... *)
-    let values = Ctx.values_with ctx (fun cell -> cell.value) in
-    let size = Ctx.size ctx in
-    f ~env:(D.Env.from_vals values size)
+    let env = (Eff.read ()).values in
+    f ~env
 
   let lift_quote (f : size:int -> 'a) : 'a =
-    let ctx = Eff.read () in
+    let ctx = (Eff.read ()).names in
     f ~size:(Ctx.size ctx)
 
-  let eval tm = lift_eval Core.Eval.eval tm
-  let eval_tp tp = lift_eval Core.Eval.eval_tp tp
-  let quote tm = lift_quote Core.Quote.quote tm
-  let quote_tp tp = lift_quote Core.Quote.quote_tp tp
+  let eval tm = lift_eval NbE.eval tm
+  let eval_tp tp = lift_eval NbE.eval_tp tp
+  let quote tm = lift_quote NbE.quote tm
+  let quote_tp tp = lift_quote NbE.quote_tp tp
 
-  let inst_tm_clo = Core.Eval.inst_tm_clo
-  let inst_tp_clo = Core.Eval.inst_tp_clo
+  let inst_tm_clo = NbE.inst_tm_clo
+  let inst_tp_clo = NbE.inst_tp_clo
 
   (** {1 Errors} *)
 
-  (* [TODO: Reed M, 02/05/2022] Think these through more... *)
-  exception TypeError of string
+  module Error =
+  struct
+    let type_error expected actual =
+      let msg = Format.asprintf "Expected '%a' = '%a'@."
+          (D.pp_tp Pp.init) expected
+          (D.pp_tp Pp.init) actual
+      in
+      let diag = Diagnostic.error ~code:"E0004" msg in
+      raise @@ Diagnostic.Fatal diag
+
+    let staging_mismatch expected actual =
+      let msg =
+        Format.asprintf "Expected staging level '%d' but got '%d'"
+          expected
+          actual
+      in
+      let diag = Diagnostic.error ~code:"E0005" msg in
+      raise @@ Diagnostic.Fatal diag
+
+    let staging_not_inferrable tp =
+      let msg =
+        Format.asprintf "Could not infer staging level of type '%a'"
+          CS.dump tp
+      in
+      let diag = Diagnostic.error ~code:"E0006" msg in
+      raise @@ Diagnostic.Fatal diag
+
+    let expected_connective conn actual =
+      let msg =
+        Format.asprintf "Expected a %s but got '%a'"
+          conn
+          (D.pp_tp Pp.init) actual
+      in
+      let diag = Diagnostic.error ~code:"E0007" msg in
+      raise @@ Diagnostic.Fatal diag
+
+    let cant_stage_zero () =
+      let msg =
+        Format.asprintf "Tried to quote an expression to level 0."
+      in
+      let diag = Diagnostic.error ~code:"E0008" msg in
+      raise @@ Diagnostic.Fatal diag
+
+    let type_not_inferrable tp =
+      let msg =
+        Format.asprintf "Could not infer type of '%a'"
+          CS.dump tp
+      in
+      let diag = Diagnostic.error ~code:"E0009" msg in
+      raise @@ Diagnostic.Fatal diag
+  end
 
   (** {1 Elaborating Types} *)
 
-  let rec check_tp (tm : CS.t) ~(stage:int) : S.tp =
+  let rec check_tp (tm : CS.t) ~(stage : int) : S.tp =
     match tm with
     | CS.Pi (base, name, fam) ->
       let base = check_tp base ~stage in
       let vbase = eval_tp base in
-      let fam = bind_var name vbase @@ fun _ ->
+      let fam = bind_var name stage vbase @@ fun _ ->
         check_tp fam ~stage
       in S.Pi (base, name, fam)
     | tm ->
@@ -79,14 +139,14 @@ open struct
       if stage = inferred_stage then
         tp
       else
-        raise @@ TypeError "Stage mismatch"
+        Error.staging_mismatch stage inferred_stage
 
   and infer_tp (tm : CS.t) : (S.tp * int) =
     match tm with
     | CS.Pi (base, ident, fam) ->
       let base, base_stage = infer_tp base in
       let vbase = eval_tp base in
-      let fam = bind_var ident vbase @@ fun _ ->
+      let fam = bind_var ident base_stage vbase @@ fun _ ->
         check_tp fam ~stage:base_stage
       in S.Pi (base, ident, fam), base_stage
     | CS.Expr tp ->
@@ -94,83 +154,99 @@ open struct
       S.Expr tp, stage + 1
     | CS.Univ {stage} ->
       S.Univ stage, stage
-    | _ -> raise @@ TypeError "Type not inferrable"
+    | _ ->
+      Error.staging_not_inferrable tm
 
   (** {1 Elaborating Terms} *)
-  and check (tm : CS.t) (tp : D.tp) : S.t =
+  and check (tm : CS.t) ~(stage : int) (tp : D.tp) : S.t =
     match tm, tp with
     | CS.Lam ([], body), tp ->
-      check body tp
+      check body ~stage tp
     | CS.Lam (name :: names, body), D.Pi (base, _, fam) ->
-      bind_var name base @@ fun arg ->
-      let fib = inst_tp_clo fam (Lazy.force arg.value) in
-      S.Lam(name, check (CS.Lam (names, body)) fib)
+      bind_var name stage base @@ fun arg ->
+      let fib = inst_tp_clo fam arg in
+      let body = check (CS.Lam (names, body)) ~stage fib in
+      S.Lam(name, body)
+    | CS.Pi (base, x, fam), D.Univ stage ->
+      let base = check base ~stage (D.Univ stage) in
+      let base_tp = NbE.do_el @@ eval base in
+      let fam = bind_var x stage base_tp @@ fun _ ->
+        check fam ~stage (D.Univ stage)
+      in
+      S.CodePi (base, S.Lam (x, fam))
     | CS.Quote tm, D.Expr tp ->
-      S.Quote (check tm tp)
+      if stage > 0 then
+        S.Quote (check tm ~stage:(stage - 1) tp)
+      else
+        Error.cant_stage_zero ()
     | _ ->
-      let tm', tp' = infer tm in
-      try Conversion.equate_tp ~size:0 tp tp'; tm' with
-      | Conversion.NotConvertible -> raise @@ TypeError "Not of expected type"
+      let tm', _, tp' = infer tm in
+      try NbE.equate_tp ~size:0 tp tp'; tm' with
+      | NbE.NotConvertible ->
+        Error.type_error tp tp'
 
   (* [TODO: Reed M, 02/05/2022] Should I return the stage here? *)
-  and infer (tm : CS.t) : S.t * D.tp =
+  and infer (tm : CS.t) : S.t * int * D.tp =
     match tm with
     | CS.Var nm ->
       begin
         match resolve_local nm with
         | Some ix ->
           let cell = get_local ix in
-          S.Local ix, cell.tp
+          S.Local ix, cell.stage, cell.tp
         | None ->
-          let (v, tp) = resolve_global nm in
-          S.Global (nm, v), tp
+          let (v, stage, tp) = resolve_global nm in
+          S.Global (nm, v), stage, tp
       end
     | CS.Ap (t, ts) ->
-      let rec check_args tp tms =
+      let rec check_args stage tp tms =
         match tp, tms with
         | tp, [] -> [], tp
         | (D.Pi (base, _, fam)), (tm :: tms) ->
-          let tm = check tm base in
+          let tm = check tm ~stage base in
           let vtm = eval tm in
           let fib = inst_tp_clo fam vtm in
-          let tms, ret = check_args fib tms in
+          let tms, ret = check_args stage fib tms in
           (tm :: tms, ret)
-        | _ -> raise @@ TypeError "Expected a pi type"
+        | _ ->
+          Error.expected_connective "a pi type" tp
       in
-      let f_tm, f_tp = infer t in
-      let tms, tp = check_args f_tp ts in
-      S.apps f_tm tms, tp
+      let f_tm, f_stage, f_tp = infer t in
+      let tms, tp = check_args f_stage f_tp ts in
+      S.apps f_tm tms, f_stage, tp
     | CS.Splice tm ->
-      let tm, tp = infer tm in
+      let tm, stage, tp = infer tm in
       begin
         match tp with
         | D.Expr tp ->
-          S.Splice tm, tp
-        | _ -> raise @@ TypeError "Expected an expression type"
+          S.Splice tm, stage - 1, tp
+        | _ ->
+          Error.expected_connective "an expresssion type" tp
       end
     (* [TODO: Reed M, 03/05/2022] is this right? *)
     | CS.Univ {stage} ->
-      S.CodeUniv stage, D.Univ stage
+      S.CodeUniv stage, stage, D.Univ stage
     | CS.Ann {tm; tp} ->
-      let (tp, _) = infer_tp tp in
+      let (tp, stage) = infer_tp tp in
       let vtp = eval_tp tp in
-      let tm = check tm vtp in
-      (tm, vtp)
-    | _ -> raise @@ TypeError (Format.asprintf "Not inferrable: %a" CS.dump tm)
+      let tm = check tm ~stage vtp in
+      (tm, stage, vtp)
+    | _ ->
+      Error.type_not_inferrable tm
 end
 
 let check_tp tp ~stage =
-  let env = Ctx.create 128 in
+  let env = create_env 128 in
   Eff.run ~env @@ fun () -> check_tp tp ~stage
 
 let infer_tp tp =
-  let env = Ctx.create 128 in
+  let env = create_env 128 in
   Eff.run ~env @@ fun () -> infer_tp tp
 
-let check tm tp =
-  let env = Ctx.create 128 in
-  Eff.run ~env @@ fun () -> check tm tp
+let check tm ~stage tp =
+  let env = create_env 128 in
+  Eff.run ~env @@ fun () -> check tm ~stage tp
 
 let infer tm =
-  let env = Ctx.create 128 in
+  let env = create_env 128 in
   Eff.run ~env @@ fun () -> infer tm

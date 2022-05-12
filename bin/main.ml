@@ -24,4 +24,7 @@ let stagedtt_info =
     ~exits:(err_exit :: Cmd.Exit.defaults)
 
 let () =
+  Printexc.record_backtrace true
+
+let () =
   exit (Cmd.eval ~catch:true ~err:Format.std_formatter @@ Cmd.group stagedtt_info [load_cmd])

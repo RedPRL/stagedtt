@@ -7,5 +7,5 @@
 (library
   (name Frontend)
   (preprocess (pps ppx_effects))
-  (libraries bantorra yuujinchou stagedtt.elaborator stagedtt.core menhirLib)
+  (libraries bantorra yuujinchou stagedtt.elaborator stagedtt.stage stagedtt.core menhirLib)
   (public_name stagedtt.frontend))

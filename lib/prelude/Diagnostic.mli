@@ -1,9 +1,3 @@
-type severity =
-  | Info
-  | Warning
-  | Error
-
-
 type note
 
 type cause
@@ -16,7 +10,9 @@ val help : string -> cause -> cause
 val info : ?cause:cause -> code:string -> string -> t 
 val warning : ?cause:cause -> code:string -> string -> t 
 val error : ?cause:cause -> code:string -> string -> t 
+val impossible : ?cause:cause -> code:string -> string -> t 
 
 val pp : Format.formatter -> t -> unit
 
 exception Fatal of t
+val fatal : t -> 'a

@@ -1,11 +1,76 @@
 open Prelude
-open Data
+module D := Data
 
-include module type of Domain
+type env = D.value_env
 
-val local : int -> Domain.t
-val global : Ident.path -> Domain.t Lazy.t -> Domain.t 
-val push_frm : Domain.neu -> Domain.frm -> unfold:(Domain.t -> Domain.t) -> Domain.neu
+type 'a clo = 'a D.vclo = 
+  | Clo of 'a * env
+
+type tm_clo = D.syn clo
+type tp_clo = D.syn_tp clo
+
+type t = D.value =
+  | Lam of Ident.t * tm_clo
+  | Quote of D.value
+  | Neu of D.neu
+  | Code of code
+
+and tp = D.value_tp =
+  | Pi of tp * Ident.t * tp_clo
+  | Expr of tp
+  | El of code
+  | ElNeu of neu
+  | Univ of int
+
+and code = D.code = 
+  | CodePi of t * t
+  | CodeUniv of int
+
+and neu = D.neu = { hd : hd; spine : frm list } 
+
+and hd = D.hd = 
+  | Local of int
+  | Global of Ident.path * t Lazy.t
+
+and frm = D.frm =
+  | Ap of t
+  | Splice
+
+
+val local : int -> t
+val global : Ident.path -> t Lazy.t -> t 
+val push_frm : neu -> frm -> unfold:(t -> t) -> neu
 
 (** {1 Pretty Printing} *)
 val pp : t Pp.printer
+val pp_tp : tp Pp.printer
+
+module Env : sig
+  val empty : env
+
+  (** Create an environment from a list of values
+      NOTE: This also takes in the length of the list
+      to avoid performing an O(n) computation. *)
+  val from_vals : t Lazy.t bwd -> int -> env
+
+  (** Lookup a DeBrujin Index in an environment. *)
+  val lookup_idx : env -> int -> t Lazy.t option
+
+  (** Lookup a DeBrujin Index in an environment. *)
+  val lookup_tp_idx : env -> int -> tp option
+
+  (** Get all the local bindings in an environment. *)
+  val locals : env -> t Lazy.t bwd
+
+  (** Get the number of values in the environment. *)
+  val size : env -> int
+
+  (** Get the number of types in the environment. *)
+  val tp_size : env -> int
+
+  (** Extend an environment with a value. *)
+  val extend : env -> t -> env
+
+  (** Extend an environment with a type. *)
+  val extend_tp : env -> tp -> env
+end

@@ -1,7 +1,10 @@
+open Core
 open TermBuilder
 
 module S = Syntax
 module D = Domain
+module O = Outer
+module I = Inner
 
 exception NbeFailed of string 
 
@@ -30,13 +33,15 @@ open struct
       get_local ix
     | S.Global (path, v) ->
       D.global path v
+    | S.Staged (_, _, v) ->
+      Lazy.force v
     | S.Lam (x, body) ->
       D.Lam (x, clo body)
     | S.Ap (f, a) ->
       do_ap (eval f) (eval a)
     | S.Quote t ->
       D.Quote (eval t)
-    | S.Splice t ->
+    | S.Splice (t) ->
       do_splice (eval t)
     | S.CodePi (base, fam) ->
       D.Code (D.CodePi (eval base, eval fam))
@@ -124,7 +129,7 @@ end
 (* [TODO: Reed M, 28/04/2022] Can we use Lazy.force_val here? *)
 let unfold : D.t -> D.t =
   function
-  | D.Neu { hd = D.Global(_,v); _ } -> Lazy.force v
+  | D.Neu { hd = D.Global(_, v); _ } -> Lazy.force v
   | tm -> tm
 
 let eval ~env tm =

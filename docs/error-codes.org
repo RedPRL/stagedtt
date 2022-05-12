@@ -4,6 +4,18 @@
 ** E0003
 =stagedtt= expected to fail due to a ~#fail~ directive, but
 did not.
+** E0004
+There was a type mismatch when between check and inference modes.
+** E0005
+There was a staging level mismatch
+** E0006
+The staging level of a type was not inferrable.
+** E0007
+There was a connective mismatch
+** E0008
+We tried to quote a value to level 0.
+** E0009
+Couldn't infer type
 * Warnings 
 ** W0001
 =stagedtt= encountered a feature that is under construction.

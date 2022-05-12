@@ -4,6 +4,7 @@ type severity =
   | Info
   | Warning
   | Error
+  | Impossible
 
 (* [TODO: Reed M, 02/05/2022] Integrate this into the diagnostic system *)
 type note = 
@@ -28,6 +29,10 @@ type t =
 
 exception Fatal of t
 
+let fatal diag =
+  (* [TODO: Reed M, 11/05/2022] Remove this frame from the callstack *)
+  raise (Fatal diag)
+
 let cause ~filename ~row ~column =
   { filename; row; column; notes = Emp }
 
@@ -49,11 +54,15 @@ let warning ?cause ~code message =
 let error ?cause ~code message =
   { code; severity = Error; message; cause }
 
+let impossible ?cause ~code message =
+  { code; severity = Impossible; message; cause }
+
 let pp_severity fmt =
   function
   | Info -> Format.fprintf fmt "Info"
   | Warning -> Format.fprintf fmt "Warning"
   | Error -> Format.fprintf fmt "Error"
+  | Impossible -> Format.fprintf fmt "Internal Error"
 
 let pp_note fmt  =
   function

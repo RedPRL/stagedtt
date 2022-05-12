@@ -1,9 +1,28 @@
 open Prelude
-open Data
+module D = Data
 
 module StringMap = Map.Make (String)
 
-include Syntax
+type t = D.syn =
+  | Local of int
+  | Global of Ident.path * D.value Lazy.t
+  | Staged of Ident.path * D.outer Lazy.t * D.value Lazy.t
+
+  | Lam of Ident.t * t
+  | Ap of t * t
+
+  | Quote of t
+  | Splice of t
+
+  | CodePi of t * t
+  | CodeUniv of int
+
+type tp = D.syn_tp =
+  | TpVar of int
+  | Pi of tp * Ident.t * tp
+  | Expr of tp
+  | El of t
+  | Univ of int
 
 let app f a = Ap (f, a) 
 let apps f args = List.fold_left app f args
@@ -32,6 +51,7 @@ let classify_tm =
   function
   | Local _ -> Prec.atom
   | Global _ -> Prec.atom
+  | Staged _ -> Prec.atom
   | Lam _ -> Prec.arrow
   | Ap _ -> Prec.juxtaposition
   | Quote _ -> Prec.quote
@@ -39,13 +59,22 @@ let classify_tm =
   | CodePi _ -> Prec.arrow
   | CodeUniv _ -> Prec.atom
 
+let classify_tp =
+  function
+  | TpVar _ -> Prec.atom
+  | Pi _ -> Prec.arrow
+  | Expr _ -> Prec.delimited
+  | El _ -> Prec.passed
+  | Univ _ -> Prec.atom
+
 let rec pp env =
   Pp.parens classify_tm env @@ fun fmt ->
   function
   | Local ix ->
     Pp.var env fmt ix
   | Global (path, _) ->
-    (* [TODO: Reed M, 02/05/2022] Support unfolding during pretty printing *)
+    Ident.pp_path fmt path
+  | Staged (path, _, _) ->
     Ident.pp_path fmt path
   | Lam (x, body) ->
     let x, env = Pp.bind_var x env in
@@ -69,13 +98,38 @@ let rec pp env =
   | CodeUniv stage ->
     Format.fprintf fmt "type %d" stage
 
-let rec dump fmt =
+let rec pp_tp env =
+  Pp.parens classify_tp env @@ fun fmt ->
+  function
+  | TpVar lvl ->
+    Format.fprintf fmt "tpvar[%d]"
+      lvl
+  | Pi (base, ident, fam) ->
+    let x, envx = Pp.bind_var ident env in
+    Format.fprintf fmt "(%s : %a) → %a"
+      x
+      (pp_tp (Pp.left_of Prec.colon envx)) base
+      (pp_tp (Pp.right_of Prec.arrow envx)) fam
+  | Expr tp ->
+    Format.fprintf fmt "⇑[ %a ]"
+      (pp_tp (Pp.isolated env)) tp
+  | El tp ->
+    pp env fmt tp
+  | Univ stage ->
+    Format.fprintf fmt "type %d"
+      stage
+
+let rec dump fmt : t -> unit =
   function
   | Local ix ->
     Format.fprintf fmt "var[%d]"
       ix
   | Global (nm, _) ->
     Format.fprintf fmt "global[%a]"
+      Ident.pp_path
+      nm
+  | Staged (nm, _, _) ->
+    Format.fprintf fmt "staged[%a]"
       Ident.pp_path
       nm
   | Lam (_, body) ->

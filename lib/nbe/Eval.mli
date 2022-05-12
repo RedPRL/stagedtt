@@ -1,3 +1,4 @@
+open Core
 open TermBuilder
 
 module S = Syntax
