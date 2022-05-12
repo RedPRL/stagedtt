@@ -1,20 +1,18 @@
 open Prelude
 open Core
+open Eff
 
 module S = Syntax
 module D = Domain
 module I = Inner
 module O = Outer
 
-
-
 open struct
   type env =
     { locals : O.env;
-      goal_stage : int;
-      current_stage : int }
+      stage : int; }
 
-  module Eff = Algaeff.Reader.Make (struct type nonrec env = env end)
+  module Reader = Algaeff.Reader.Make (struct type nonrec env = env end)
 
   let impossible msg =
     Format.asprintf msg
@@ -22,7 +20,7 @@ open struct
     |> Diagnostic.fatal
 
   let get_locals () =
-    (Eff.read()).locals
+    (Reader.read()).locals
 
   let get_outer_local ix =
     let env = get_locals () in
@@ -38,23 +36,13 @@ open struct
     | O.Outer _ ->
       impossible "Expected an inner variable in 'get_inner_local'"
 
-  type mode =
-    | Inner
-    | Outer
-
   let incr_stage k =
-    let env = Eff.read () in
-    let mode =
-      if env.current_stage + 1 > env.goal_stage then Outer else Inner
-    in
-    Eff.scope (fun env -> { env with current_stage = env.current_stage + 1 }) (fun () -> k mode)
+    let stage = (Reader.read ()).stage in
+    Staging.incr_stage stage k
 
   let decr_stage k =
-    let env = Eff.read () in
-    let mode =
-      if env.current_stage - 1 <= env.goal_stage then Inner else Outer
-    in
-    Eff.scope (fun env -> { env with current_stage = env.current_stage - 1 }) (fun () -> k mode)
+    let stage = (Reader.read ()).stage in
+    Staging.decr_stage stage k
 
   let bind_inner k =
     let extend env =
@@ -62,18 +50,18 @@ open struct
       let locals = O.Env.extend_inner env.locals var in
       { env with locals }
     in
-    Eff.scope extend k
+    Reader.scope extend k
 
   let expand_outer_global (gbl : S.global) =
     match gbl with
     | `Unstaged _ ->
       impossible "Encountered a global variable of stage 0 when evaluating outer syntax."
     | `Staged (_, _, _, expand) ->
-      let stage = (Eff.read ()).goal_stage in
+      let stage = (Reader.read ()).stage in
       expand stage
 
   let with_locals locals k =
-    Eff.scope (fun env -> { env with locals }) k
+    Reader.scope (fun env -> { env with locals }) k
 
   let clo body =
     O.Clo (body, get_locals ())
@@ -144,16 +132,13 @@ open struct
       eval_outer body
 end
 
-let eval_inner ~tm_stage tm =
-  let env = {
-    locals = O.Env.empty;
-    goal_stage = tm_stage;
-    current_stage = tm_stage }
-  in Eff.run ~env @@ fun () -> eval_inner tm
+let eval_inner tm =
+  Debug.print "Evaluating Inner@.";
+  let stage = Staging.get_stage () in
+  Debug.print "Handled Stage Effect!@.";
+  let env = { locals = O.Env.empty; stage } in
+  Reader.run ~env @@ fun () -> eval_inner tm
 
-let eval_outer ~tm_stage tm stage =
-  let env = {
-    locals = O.Env.empty;
-    goal_stage = stage;
-    current_stage = tm_stage }
-  in Eff.run ~env @@ fun () -> eval_outer tm
+let eval_outer tm to_stage =
+  let env = { locals = O.Env.empty; stage = to_stage } in
+  Reader.run ~env @@ fun () -> eval_outer tm

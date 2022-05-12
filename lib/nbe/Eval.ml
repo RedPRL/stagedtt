@@ -9,31 +9,24 @@ module O = Outer
 exception NbeFailed of string
 
 open struct
-  type env =
-    { locals : D.env;
-      stage : int }
 
-  module Eff = Algaeff.Reader.Make (struct type nonrec env = env end)
+  module Eff = Algaeff.Reader.Make (struct type nonrec env = D.env end)
 
   let get_local ix =
-    match D.Env.lookup_idx (Eff.read ()).locals ix with
+    match D.Env.lookup_idx (Eff.read ()) ix with
     | Some v -> Lazy.force v
     | None -> raise @@ NbeFailed "Variable lookup out of scope!"
 
   let get_local_tp ix =
-    match D.Env.lookup_tp_idx (Eff.read ()).locals ix with
+    match D.Env.lookup_tp_idx (Eff.read ()) ix with
     | Some tp -> tp
     | None -> raise @@ NbeFailed "Variable lookup out of scope!"
 
   let clo body =
-    D.Clo (body, (Eff.read()).locals)
+    D.Clo (body, (Eff.read()))
 
   let eval_inner tm =
-    let tm_stage = (Eff.read ()).stage in
-    Stage.eval_inner ~tm_stage tm
-
-  let with_locals locals k =
-    Eff.scope (fun env -> { env with locals }) k
+    Stage.Effectful.eval_inner tm
 
   (** {1 Evaluating Terms} *)
 
@@ -43,8 +36,8 @@ open struct
       get_local ix
     | S.Global (`Unstaged (path, v, inner)) ->
       D.global path v inner
-    | S.Global (`Staged (_, v, _, _)) ->
-      Lazy.force v
+    | S.Global (`Staged (path, v, inner, _)) ->
+      D.global path v inner
     | S.Lam (x, body) ->
       D.Lam (x, clo body)
     | S.Ap (f, a) ->
@@ -124,21 +117,20 @@ open struct
   and inst_tm_clo (clo : D.tm_clo) (x : D.t) : D.t =
     match clo with
     | D.Clo (body, env) ->
-      with_locals (D.Env.extend env x) @@ fun () -> eval body
+      Eff.run ~env:(D.Env.extend env x) @@ fun () -> eval body
 
   and inst_tp_clo (clo : D.tp_clo) (x : D.t) : D.tp =
     match clo with
     | D.Clo (body, env) ->
-      with_locals (D.Env.extend env x) @@ fun () ->
-      eval_tp body
+      Eff.run ~env:(D.Env.extend env x) @@ fun () -> eval_tp body
 
   and graft_value (gtm : S.t Graft.t) =
     let tm, env = Graft.graft gtm in
-    with_locals env @@ fun () -> eval tm
+    Eff.run ~env @@ fun () -> eval tm
 
   and graft_tp (gtp : S.tp Graft.t) =
     let tp, env = Graft.graft gtp in
-    with_locals env @@ fun () -> eval_tp tp
+    Eff.run ~env @@ fun () -> eval_tp tp
 end
 
 (** {1 Public Interface} *)
@@ -149,16 +141,15 @@ let unfold : D.t -> D.t =
   | D.Neu { hd = D.Global(`Unstaged (_, v, _)); _ } -> Lazy.force v
   | tm -> tm
 
-let eval ~stage ~env tm =
-  let env = { stage; locals = env } in
+let eval ~env tm =
   Eff.run ~env @@ fun () -> eval tm
 
-let eval_tp ~stage ~env tp =
-  let env = { stage; locals = env } in
+let eval_tp ~env tp =
   Eff.run ~env @@ fun () -> eval_tp tp
 
-let inst_tm_clo = inst_tm_clo
-let inst_tp_clo = inst_tp_clo
+let inst_tm_clo clo v = inst_tm_clo clo v
+
+let inst_tp_clo clo v = inst_tp_clo clo v
 
 let do_ap = do_ap
 let do_splice = do_splice

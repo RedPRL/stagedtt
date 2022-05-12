@@ -164,17 +164,13 @@ open struct
     | CS.Lam ([], body), tp ->
       check body ~stage tp
     | CS.Lam (name :: names, body), D.Pi (base, _, fam) ->
-      Debug.print "Checking lambda@.";
       bind_var name stage base @@ fun arg ->
-      Debug.print "Bound var@.";
-      let fib = inst_tp_clo fam arg in
-      Debug.print "Inst clo@.";
+      let fib = inst_tp_clo ~stage fam arg in
       let body = check (CS.Lam (names, body)) ~stage fib in
-      Debug.print "Checked body@.";
       S.Lam(name, body)
     | CS.Pi (base, x, fam), D.Univ stage ->
       let base = check base ~stage (D.Univ stage) in
-      let base_tp = NbE.do_el @@ eval ~stage base in
+      let base_tp = NbE.do_el ~stage @@ eval ~stage base in
       let fam = bind_var x stage base_tp @@ fun _ ->
         check fam ~stage (D.Univ stage)
       in
@@ -210,7 +206,7 @@ open struct
         | (D.Pi (base, _, fam)), (tm :: tms) ->
           let tm = check tm ~stage base in
           let vtm = eval ~stage tm in
-          let fib = inst_tp_clo fam vtm in
+          let fib = inst_tp_clo ~stage fam vtm in
           let tms, ret = check_args stage fib tms in
           (tm :: tms, ret)
         | _ ->

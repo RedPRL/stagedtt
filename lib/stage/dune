@@ -1,4 +1,4 @@
 (library
   (name Stage)
-  (libraries algaeff bwd stagedtt.core stagedtt.prelude)
+  (libraries algaeff bwd stagedtt.eff stagedtt.core stagedtt.prelude)
   (public_name stagedtt.stage))

@@ -8,7 +8,7 @@ module D := Domain
 val eval : stage:int -> env:D.env -> S.t -> D.t
 val eval_tp : stage:int -> env:D.env -> S.tp -> D.tp
 
-val do_el : D.t -> D.tp
+val do_el : stage:int -> D.t -> D.tp
 
 (** {1 Quoting} *)
 val quote : size:int -> D.t -> S.t
@@ -25,6 +25,6 @@ val graft_value : S.t Graft.t -> D.t
 val graft_tp : S.tp Graft.t -> D.tp
 
 (** {1 Closure Instantiation} *)
-val inst_tm_clo : D.tm_clo -> D.t -> D.t
-val inst_tp_clo : D.tp_clo -> D.t -> D.tp
+val inst_tm_clo : stage:int -> D.tm_clo -> D.t -> D.t
+val inst_tp_clo : stage:int -> D.tp_clo -> D.t -> D.tp
 

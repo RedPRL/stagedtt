@@ -69,26 +69,26 @@ let resolve_inner path =
 let exec_command : command -> status =
   function
   | Declare {ident = User path; tp; tm} ->
-    let (tm, tm_stage, vtp) = elab tp tm in
+    let (tm, stage, vtp) = elab tp tm in
     let vtm =
       lazy begin
-        NbE.eval ~stage:tm_stage ~env:D.Env.empty tm
+        NbE.eval ~stage ~env:D.Env.empty tm
       end in
     let itm =
       lazy begin
-        Stage.eval_inner ~tm_stage tm
+        Stage.eval_inner ~stage tm
       end
     in
     let expand =
-      Stage.eval_outer ~tm_stage tm
+      Stage.eval_outer ~stage tm
     in
     let gbl : S.global =
-      if tm_stage = 0 then
+      if stage = 0 then
         `Unstaged (path, vtm, itm)
       else
         `Staged (path, vtm, itm, expand)
     in
-    Namespace.define path gbl tm_stage vtp;
+    Namespace.define path gbl stage vtp;
     Continue
   | Declare {ident = Anon; tp; tm} ->
     let (_, _, _) = elab tp tm in
