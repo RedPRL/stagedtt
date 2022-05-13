@@ -1,6 +1,6 @@
 open Prelude
 
-let error_cause (span : Lex.span) ~note =
+let error_cause (span : Span.t) ~note =
   let filename = span.start.pos_fname in
   let row = span.start.pos_lnum in
   let column = span.start.pos_cnum - span.start.pos_bol in
@@ -17,7 +17,7 @@ let error_cause (span : Lex.span) ~note =
       In_channel.input_line chan
   in
   Diagnostic.cause ~filename ~row ~column
-  |> Diagnostic.note ~source_code ~row ~start_col:column ~end_col ~note
+  |> Diagnostic.with_note ~source_code ~row ~start_col:column ~end_col ~msg:note
 
 let lex_error token span =
   Diagnostic.error
@@ -55,3 +55,4 @@ let load input =
   let cmds = try_parse Grammar.commands lexbuf in
   close_in chan;
   cmds
+  |> Result.map @@ fun cmds -> (cmds, lexbuf)

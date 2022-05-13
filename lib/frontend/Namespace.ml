@@ -1,7 +1,8 @@
 open Algaeff.StdlibShim
+open Yuujinchou
 
 open Prelude
-open Yuujinchou
+open Eff
 open Elaborator
 
 module S = Core.Syntax
@@ -26,9 +27,9 @@ let run f =
       match NS.resolve path with
       | Some data -> continue k data
       | None ->
-        let msg = Format.asprintf "Identifier '%a' is not in scope." Ident.pp_path path in
-        let diag = Diagnostic.error ~code:"E0001" msg
-        in discontinue k @@ Diagnostic.Fatal diag
+        let msg = "Scope Error" in 
+        let note = Format.asprintf "Identifier '%a' is not in scope." Ident.pp_path path in
+        Doctor.error ~note ~code:"E0001" msg
   in
   try handle_resolve_global () with
   | [%effect? NS.Act.BindingNotFound _, k] -> continue k ()

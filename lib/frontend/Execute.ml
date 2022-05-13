@@ -1,7 +1,9 @@
 open Prelude
+open Core
+open Eff
+
 open Command
 open Elaborator
-open Core
 
 
 module CS = Elaborator.Syntax
@@ -101,7 +103,7 @@ let exec_command : command -> status =
         Diagnostic.error ~code:"E0003" @@
         Format.asprintf "Expected failure '%s'." message
       with
-      | Diagnostic.Fatal diag ->
+      | [%effect? Doctor.Fatal diag, _] ->
         Diagnostic.pp Format.std_formatter @@
         Diagnostic.info ~code:"I0003" @@
         Format.asprintf "Encountered expected failure@.@[<v 2>%a@]"
@@ -151,12 +153,17 @@ let rec exec : command list -> unit =
 
 let load input =
   match Loader.load input with
-  | Ok cmds ->
+  | Ok (cmds, lexbuf) ->
     begin
       try
+        Doctor.run lexbuf @@ fun () ->
         Namespace.run @@ fun () ->
         exec cmds
-      with Diagnostic.Fatal diag ->
-        Diagnostic.pp Format.err_formatter diag
+      with
+      | [%effect? Doctor.Fatal diag, _] ->
+        Diagnostic.pp Format.err_formatter diag;
+      | [%effect? Doctor.Survivable diag, k] ->
+        Diagnostic.pp Format.std_formatter diag;
+        Effect.Deep.continue k ()
     end
   | Error diagnostic -> Diagnostic.pp Format.err_formatter diagnostic

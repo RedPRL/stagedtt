@@ -14,11 +14,6 @@ open struct
 
   module Reader = Algaeff.Reader.Make (struct type nonrec env = env end)
 
-  let impossible msg =
-    Format.asprintf msg
-    |> Diagnostic.impossible ~code:"XSTAGE"
-    |> Diagnostic.fatal
-
   let get_locals () =
     (Reader.read()).locals
 
@@ -27,14 +22,14 @@ open struct
     match O.Env.lookup_lvl env ix with
     | O.Outer otm -> otm
     | O.Inner _ ->
-      impossible "Expected an outer variable in 'get_outer_local'"
+      Doctor.impossible "Expected an outer variable in 'get_outer_local'"
 
   let get_inner_local ix =
     let env = get_locals () in
     match O.Env.lookup_lvl env ix with
     | O.Inner itm -> itm
     | O.Outer _ ->
-      impossible "Expected an inner variable in 'get_inner_local'"
+      Doctor.impossible "Expected an inner variable in 'get_inner_local'"
 
   let incr_stage k =
     let stage = (Reader.read ()).stage in
@@ -55,7 +50,7 @@ open struct
   let expand_outer_global (gbl : S.global) =
     match gbl with
     | `Unstaged _ ->
-      impossible "Encountered a global variable of stage 0 when evaluating outer syntax."
+      Doctor.impossible "Encountered a global variable of stage 0 when evaluating outer syntax."
     | `Staged (_, _, _, expand) ->
       let stage = (Reader.read ()).stage in
       expand stage
@@ -118,12 +113,12 @@ open struct
     match fn with
     | O.Lam (_, clo) -> inst_tm_clo clo a
     | _ -> 
-      impossible "Expected a function in do_outer_ap"
+      Doctor.impossible "Expected a function in do_outer_ap"
 
   and do_splice (otm : O.t) =
     match otm with
     | O.Quote tm -> tm
-    | _ -> impossible "Expected a quoted inner value in do_splice"
+    | _ -> Doctor.impossible "Expected a quoted inner value in do_splice"
 
   and inst_tm_clo clo v =
     match clo with

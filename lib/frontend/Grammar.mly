@@ -3,16 +3,20 @@ open Prelude
 open Command
 open CS
 
+let locate (start, stop) node =
+  {node; info = Some {start; stop}}
+
 let ap_or_atomic =
   function
   | [] -> failwith "Impossible Internal Error"
-  | [f] -> f
+  | [f] -> f.node
   | f :: args -> Ap (f, args)
 
 %}
 
 %token <int> NUMERAL
 %token <string> ATOM
+%token <string option> HOLE
 %token <bool> FLAG
 %token COLON COLON_COLON COLON_EQUALS RIGHT_ARROW UNDERSCORE
 (* Symbols *)
@@ -27,9 +31,12 @@ let ap_or_atomic =
 
 %start <Command.command list> commands
 %type <CS.t>
-  arrow
   atomic_term
   term
+%type <CS.t_>
+  plain_arrow
+  plain_atomic_term
+  plain_term
 %type <Ident.path>
   path
 %type <Ident.t>
@@ -38,6 +45,17 @@ let ap_or_atomic =
 %right RIGHT_ARROW
 
 %%
+
+%inline
+located(X):
+  | e = X
+    { locate $loc e }
+
+term: t = located(plain_term)
+  { t }
+
+atomic_term: t = located(plain_atomic_term)
+  { t }
 
 path:
   | path = separated_nonempty_list(COLON_COLON, ATOM)
@@ -71,13 +89,13 @@ command:
   | QUIT
     { Quit }
 
-term:
+plain_term:
   | tms = nonempty_list(atomic_term)
     { ap_or_atomic tms }
-  | tm = arrow
+  | tm = plain_arrow
     { tm }
 
-arrow:
+plain_arrow:
   | LAMBDA; nms = list(name); RIGHT_ARROW; tm = term
     { Lam (nms, tm) }
   | LPR; ident = name; COLON; base = term; RPR; RIGHT_ARROW; fam = term
@@ -85,8 +103,8 @@ arrow:
   | base = term; RIGHT_ARROW; fam = term
     { Pi (base, Anon, fam) }
 
-atomic_term:
-  | LPR; tm = term; RPR
+plain_atomic_term:
+  | LPR; tm = plain_term; RPR
     { tm }
   | DOUBLE_UP_LSQ; tm = term; RSQ
     { Expr tm }
@@ -96,6 +114,8 @@ atomic_term:
     { Splice tm }
   | path = path
     { Var path }
+  | name = HOLE
+    { Hole name }
   | TYPE; stage = NUMERAL
     { Univ { stage } }
   | THE; tp = atomic_term; tm = atomic_term 

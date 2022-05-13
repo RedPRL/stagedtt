@@ -1,4 +1,5 @@
 open Prelude
+open Eff
 
 module Ctx = OrderedHashTbl.Make(Ident)
 
@@ -76,66 +77,61 @@ open struct
   module Error =
   struct
     let type_error expected actual =
-      let msg = Format.asprintf "Expected '%a' = '%a'@."
+      let msg = "Type Error" in
+      let note = Format.asprintf "Expected '%a' = '%a'@."
           (D.pp_tp Pp.init) expected
           (D.pp_tp Pp.init) actual
-      in
-      let diag = Diagnostic.error ~code:"E0004" msg in
-      raise @@ Diagnostic.Fatal diag
+      in Doctor.error ~note ~code:"E0004" msg
 
     let staging_mismatch expected actual =
-      let msg =
+      let msg = "Staging Mismatch" in
+      let note =
         Format.asprintf "Expected staging level '%d' but got '%d'"
           expected
           actual
-      in
-      let diag = Diagnostic.error ~code:"E0005" msg in
-      raise @@ Diagnostic.Fatal diag
+      in Doctor.error ~note ~code:"E0005" msg
 
     let staging_not_inferrable tp =
-      let msg =
+      let msg = "Inference failure" in
+      let note =
         Format.asprintf "Could not infer staging level of type '%a'"
           CS.dump tp
-      in
-      let diag = Diagnostic.error ~code:"E0006" msg in
-      raise @@ Diagnostic.Fatal diag
+      in Doctor.error ~note ~code:"E0006" msg
 
     let expected_connective conn actual =
-      let msg =
+      let msg = "Connective Mismatch" in
+      let note =
         Format.asprintf "Expected a %s but got '%a'"
           conn
           (D.pp_tp Pp.init) actual
-      in
-      let diag = Diagnostic.error ~code:"E0007" msg in
-      raise @@ Diagnostic.Fatal diag
+      in Doctor.error ~note ~code:"E0007" msg
 
     let cant_stage_zero () =
-      let msg =
+      let msg = "Staging Error" in
+      let note =
         Format.asprintf "Tried to quote an expression to level 0."
-      in
-      let diag = Diagnostic.error ~code:"E0008" msg in
-      raise @@ Diagnostic.Fatal diag
+      in Doctor.error ~note ~code:"E0008" msg
 
     let type_not_inferrable tp =
-      let msg =
+      let msg = "Inference Error" in
+      let note =
         Format.asprintf "Could not infer type of '%a'"
           CS.dump tp
-      in
-      let diag = Diagnostic.error ~code:"E0009" msg in
-      raise @@ Diagnostic.Fatal diag
+      in Doctor.error ~note ~code:"E0009" msg
   end
 
   (** {1 Elaborating Types} *)
 
   let rec check_tp (tm : CS.t) ~(stage : int) : S.tp =
-    match tm with
+    Doctor.locate tm.info @@ fun () ->
+    match tm.node with
     | CS.Pi (base, name, fam) ->
       let base = check_tp ~stage base in
       let vbase = eval_tp ~stage base in
       let fam = bind_var name stage vbase @@ fun _ ->
         check_tp fam ~stage
       in S.Pi (base, name, fam)
-    | tm ->
+    | _ ->
       let (tp, inferred_stage) = infer_tp tm in
       if stage = inferred_stage then
         tp
@@ -143,7 +139,8 @@ open struct
         Error.staging_mismatch stage inferred_stage
 
   and infer_tp (tm : CS.t) : (S.tp * int) =
-    match tm with
+    Doctor.locate tm.info @@ fun () ->
+    match tm.node with
     | CS.Pi (base, ident, fam) ->
       let base, base_stage = infer_tp base in
       let vbase = eval_tp ~stage:base_stage base in
@@ -160,14 +157,19 @@ open struct
 
   (** {1 Elaborating Terms} *)
   and check (tm : CS.t) ~(stage : int) (tp : D.tp) : S.t =
-    match tm, tp with
-    | CS.Lam ([], body), tp ->
-      check body ~stage tp
-    | CS.Lam (name :: names, body), D.Pi (base, _, fam) ->
-      bind_var name stage base @@ fun arg ->
-      let fib = inst_tp_clo ~stage fam arg in
-      let body = check (CS.Lam (names, body)) ~stage fib in
-      S.Lam(name, body)
+    Doctor.locate tm.info @@ fun () ->
+    match tm.node, tp with
+    | CS.Lam (names, body), D.Pi (base, _, fam) ->
+      let rec check_lams names tp =
+        match names with
+        | [] -> check ~stage body tp
+        | name :: names ->
+          bind_var name stage base @@ fun arg ->
+          let fib = inst_tp_clo ~stage fam arg in
+          let body = check_lams names fib in
+          S.Lam(name, body)
+      in
+      check_lams names tp
     | CS.Pi (base, x, fam), D.Univ stage ->
       let base = check base ~stage (D.Univ stage) in
       let base_tp = NbE.do_el ~stage @@ eval ~stage base in
@@ -186,9 +188,9 @@ open struct
       | NbE.NotConvertible ->
         Error.type_error tp tp'
 
-  (* [TODO: Reed M, 02/05/2022] Should I return the stage here? *)
   and infer (tm : CS.t) : S.t * int * D.tp =
-    match tm with
+    Doctor.locate tm.info @@ fun () ->
+    match tm.node with
     | CS.Var nm ->
       begin
         match resolve_local nm with
