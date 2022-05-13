@@ -24,6 +24,7 @@
   (depends
     (cmdliner (>= 1.1))
     (containers (>= 3.6))
+    (menhir (>= 20220210))
     (ppxlib (>= 0.25.0~5.00preview))
     ;; Pinned Deps
     algaeff
