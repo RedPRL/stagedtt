@@ -22,13 +22,18 @@
   (name stagedtt)
   (synopsis "A staged type theory")
   (depends
-    (bwd (>= 1.2))
     (cmdliner (>= 1.1))
     (containers (>= 3.6))
-    ppxlib
+    (menhir (>= 20220210))
+    (ppxlib (>= 0.25.0~5.00preview))
+    ;; Pinned Deps
     algaeff
+    bwd
+    bantorra
+    yuujinchou
+    ppx_effects
     ;; Tests
-    (alcotest (>= 1.5 :with-test))
-    (bechamel (>= 0.2 :with-test))
-    (bechamel-notty (>= 0.2 :with-test))))
+    (alcotest (and :with-test (>= 1.5)))
+    (bechamel (and :with-test (>= 0.2)))
+    (bechamel-notty (and (>= 0.2) :with-test))))
 
