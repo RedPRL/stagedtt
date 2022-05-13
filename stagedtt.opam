@@ -7,11 +7,11 @@ homepage: "https://www.github.com/TOTBWF/stagedtt"
 bug-reports: "https://www.github.com/TOTBWF/stagedtt"
 depends: [
   "dune" {>= "2.9"}
-  "bwd" {>= "1.2"}
   "cmdliner" {>= "1.1"}
   "containers" {>= "3.6"}
   "ppxlib" {>= "0.25.0~5.00preview"}
   "algaeff"
+  "bwd"
   "bantorra"
   "yuujinchou"
   "ppx_effects"
@@ -40,6 +40,7 @@ dev-repo: "git+https://github.com/TOTBWF/stagedtt.git"
 # These are generated from stagedtt.opam.template, due to dune-project lacking a pin-depends stanza.
 pin-depends: [
   [ "algaeff.~dev" "git+https://github.com/RedPRL/algaeff" ]
+  [ "bwd.2.0.0~dev" "git+https://github.com/RedPRL/"]
   [ "bantorra.0.2.0~dev" "git+https://github.com/RedPRL/bantorra" ]
   [ "yuujinchou.3.0.0~dev" "git+https://github.com/RedPRL/yuujinchou" ]
   [ "ppx_effects.~dev" "git+https://github.com/favonia/ppx_effects#500" ]

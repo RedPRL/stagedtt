@@ -22,12 +22,12 @@
   (name stagedtt)
   (synopsis "A staged type theory")
   (depends
-    (bwd (>= 1.2))
     (cmdliner (>= 1.1))
     (containers (>= 3.6))
     (ppxlib (>= 0.25.0~5.00preview))
     ;; Pinned Deps
     algaeff
+    bwd
     bantorra
     yuujinchou
     ppx_effects
