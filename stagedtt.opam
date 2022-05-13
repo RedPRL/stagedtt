@@ -16,9 +16,9 @@ depends: [
   "bantorra"
   "yuujinchou"
   "ppx_effects"
-  "alcotest" {"1.5" >= with-test}
-  "bechamel" {"0.2" >= with-test}
-  "bechamel-notty" {"0.2" >= with-test}
+  "alcotest" {with-test & >= "1.5"}
+  "bechamel" {with-test & >= "0.2"}
+  "bechamel-notty" {>= "0.2" & with-test}
   "odoc" {with-doc}
 ]
 build: [

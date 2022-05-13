@@ -33,7 +33,7 @@
     yuujinchou
     ppx_effects
     ;; Tests
-    (alcotest (>= 1.5 :with-test))
-    (bechamel (>= 0.2 :with-test))
-    (bechamel-notty (>= 0.2 :with-test))))
+    (alcotest (and :with-test (>= 1.5)))
+    (bechamel (and :with-test (>= 0.2)))
+    (bechamel-notty (and (>= 0.2) :with-test))))
 
