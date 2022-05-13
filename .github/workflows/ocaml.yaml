@@ -19,4 +19,3 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
           with-doc: ${{ matrix.with-doc }}
           publish-doc-if-built: ${{ github.ref == 'refs/heads/main' }}
-      - run: opam pin . --with-doc --with-test --yes

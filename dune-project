@@ -17,16 +17,19 @@
 (homepage "https://www.github.com/TOTBWF/stagedtt")
 (bug_reports "https://www.github.com/TOTBWF/stagedtt")
 
-
 (package
   (name stagedtt)
   (synopsis "A staged type theory")
   (depends
-    (bwd (>= 1.2))
     (cmdliner (>= 1.1))
     (containers (>= 3.6))
-    ppxlib
+    (ppxlib (>= 0.25.0))
+    ;; Pinned Deps
     algaeff
+    bwd
+    bantorra
+    yuujinchou
+    ppx_effects
     ;; Tests
     (alcotest (>= 1.5 :with-test))
     (bechamel (>= 0.2 :with-test))
