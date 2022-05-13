@@ -7,16 +7,74 @@ Stagedtt is an experimental implementation of a staged dependent type theory.
 As =stagedtt= uses [[https://github.com/RedPRL/algaeff][algaeff]] for effects, we will need to use a version
 of the OCaml compiler that supports effects.
 Begin by running the following command:
-- ~opam switch create stagedtt 5.0.0+trunk~
+#+BEGIN_SRC
+  opam switch create stagedtt 5.0.0+trunk && eval $(opam env)
+#+END_SRC
 
 This will create a new [[https://opam.ocaml.org/doc/FAQ.html#What-is-a-quot-switch-quot][opam switch]] for =stagedtt=.
 
-Next, run the following 2 commands to install =stagedtt=
-- ~eval $(opam env)~
-- ~opam install .~
-* Usage 
+Next, we will need to add the OCaml 5 alpha repository for =opam=,
+as some packages we need haven't yet released versions that are
+compatible with OCaml 5. We can do that with the following command:
 #+BEGIN_SRC shell
-  stagedtt load examples/demo.stt
+  opam repo add alpha git+https://github.com/kit-ty-kate/opam-alpha-repository.git
+#+END_SRC
+
+Next, run the following 2 commands to install =stagedtt=
+
+#+BEGIN_SRC shell
+  opam install . --with-test
+#+END_SRC
+* Usage
+To run =stagedtt= on a file, we can use the =stagedtt load= command
+like so:
+#+BEGIN_SRC shell
+  stagedtt load ./examples/demo.stt
+#+END_SRC
+
+As =stagedtt= is very much under construction, documentation is
+currently lacking. Your best bet is to look at the [[https://github.com/RedPRL/stagedtt/tree/main/examples][examples]] folder to see
+how the language works.
+* Development
+We use [[https://dune.build/][dune]] as our build tool. After making some changes, simply run
+the following command to compile the code.
+#+BEGIN_SRC shell
+  dune build
+#+END_SRC
+
+If you want to run =stagedtt=, the best way to do so is as follows:
+#+BEGIN_SRC shell
+  dune exec stagedtt -- load ./examples/demo.stt
+#+END_SRC
+
+To run the test suite, we can use the following command:
+#+BEGIN_SRC shell
+  dune build @runtest
+#+END_SRC
+
+=stagedtt= also has a small benchmarking suite. To run it, use the
+following command:
+#+BEGIN_SRC shell
+  dune build @bench
+#+END_SRC
+
+** Editor Tooling
+As of <2022-05-12 Thu>, the OCaml 5 ecosystem is still somewhat immature, 
+so we have to do a bit of footwork to get our tooling installed. The
+following instructions assume that we already have a working =stagedtt=
+switch set up. Furthermore, we will be installing [[https://github.com/ocaml/merlin][merlin]]. Other tools
+may have different requirements, but the process should be similar.
+
+First, we will need to add some pins for some merlin deps.
+#+BEGIN_SRC shell
+  opam switch add dot-merlin-reader git+https://github.com/ocaml/merlin#500
+#+END_SRC
+
+
+Then, we can install merlin as per usual.
+
+#+BEGIN_SRC shell
+  opam install merlin 
 #+END_SRC
 * References
 This work is inspired by some of the work by András Kovács, namely
