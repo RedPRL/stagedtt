@@ -84,6 +84,8 @@ open struct
       incr_stage @@ fun _ -> eval_outer tm
     | S.CodePi _ ->
       O.Irrelevant
+    | S.CodeExpr _ ->
+      O.Irrelevant
     | S.CodeUniv _ ->
       O.Irrelevant
 
@@ -110,6 +112,8 @@ open struct
       end
     | S.CodePi (base, fam) ->
       I.CodePi (eval_inner base, eval_inner fam)
+    | S.CodeExpr tm ->
+      I.CodeExpr (eval_inner tm)
     | S.CodeUniv stage -> I.CodeUniv stage
 
   and do_outer_ap fn a =

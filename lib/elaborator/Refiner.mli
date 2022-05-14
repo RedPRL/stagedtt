@@ -14,4 +14,5 @@ val check_tp : CS.t -> stage:int -> S.tp
 val infer_tp : CS.t -> S.tp * int
 
 val check : CS.t -> stage:int -> D.tp -> S.t
+val infer_with_stage : stage:int -> CS.t -> S.t * D.tp
 val infer : CS.t -> S.t * int * D.tp

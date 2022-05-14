@@ -26,7 +26,7 @@ let ap_or_atomic =
 (* Keywords *)
 %token TYPE THE
 (* Commands *)
-%token DEF NORMALIZE STAGE PRINT FAIL DEBUG QUIT
+%token DEF DEF_BANG NORMALIZE STAGE PRINT FAIL DEBUG QUIT
 %token EOF
 
 %start <Command.command list> commands
@@ -75,9 +75,11 @@ commands:
 
 command:
   | DEF; ident = name; COLON; tp = term; COLON_EQUALS tm = term
-    { Declare {ident; tp = Some tp; tm} }
-  | FAIL; ident = name; tp = term; COLON_EQUALS tm = term
-    { Declare {ident; tp = Some tp; tm} }
+    { Def {ident; tp = Some tp; tm} }
+  | DEF_BANG; ident = name; COLON; tp = term; COLON_EQUALS tm = term
+    { DefStaged {ident; tp = Some tp; tm} }
+  | FAIL; message = ATOM; tp = term; COLON_EQUALS tm = term
+    { Fail {message; tp = Some tp; tm} }
   | NORMALIZE; tm = term; 
     { Normalize {tm} }
   | STAGE; path = path

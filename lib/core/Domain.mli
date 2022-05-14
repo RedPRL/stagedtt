@@ -26,6 +26,7 @@ and tp = D.value_tp =
 and code = D.code = 
   | CodePi of t * t
   | CodeUniv of int
+  | CodeExpr of t
 
 and neu = D.neu = { hd : hd; spine : frm list } 
 

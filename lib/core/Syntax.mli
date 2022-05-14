@@ -19,6 +19,7 @@ and t = D.syntax =
 
   | CodePi of t * t
   | CodeUniv of int
+  | CodeExpr of t
 
 type tp = D.syntax_tp =
   | TpVar of int

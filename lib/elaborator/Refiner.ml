@@ -112,7 +112,7 @@ open struct
     let cant_stage_zero () =
       let msg = "Staging Error" in
       let note =
-        Format.asprintf "Tried to quote an expression to level 0."
+        Format.asprintf "Tried to go below stage 0."
       in Doctor.error ~note ~code:"E0008" msg
 
     let type_not_inferrable tp =
@@ -149,6 +149,12 @@ open struct
       Doctor.warning ~note ~code:"W0002" msg;
       S.Hole nm
 
+  let check_stage ~expected ~actual =
+    if expected = actual then
+      ()
+    else
+      Error.staging_mismatch expected actual
+
   (** {1 Elaborating Types} *)
 
   let rec check_tp (tm : CS.t) ~(stage : int) : S.tp =
@@ -184,6 +190,33 @@ open struct
     | _ ->
       Error.staging_not_inferrable tm
 
+  and check_code_pi ~stage base x fam =
+    let base = check base ~stage (D.Univ stage) in
+    let base_tp = NbE.do_el ~stage @@ eval ~stage base in
+    let fam = bind_var x stage base_tp @@ fun _ ->
+      check fam ~stage (D.Univ stage)
+    in
+    S.CodePi (base, S.Lam (x, fam))
+
+  and check_code_expr ~stage tm =
+    if stage <> 0 then
+      let tm = check ~stage:(stage - 1) tm (D.Univ (stage - 1)) in
+      S.CodeExpr tm
+    else
+      Error.cant_stage_zero ()
+
+  and check_args stage tp tms =
+    match tp, tms with
+    | tp, [] -> [], tp
+    | (D.Pi (base, _, fam)), (tm :: tms) ->
+      let tm = check tm ~stage base in
+      let vtm = eval ~stage tm in
+      let fib = inst_tp_clo ~stage fam vtm in
+      let tms, ret = check_args stage fib tms in
+      (tm :: tms, ret)
+    | _ ->
+      Error.expected_connective "a pi type" tp
+
   (** {1 Elaborating Terms} *)
   and check (tm : CS.t) ~(stage : int) (tp : D.tp) : S.t =
     Doctor.locate tm.info @@ fun () ->
@@ -199,13 +232,10 @@ open struct
           S.Lam(name, body)
       in
       check_lams names tp
-    | CS.Pi (base, x, fam), D.Univ stage ->
-      let base = check base ~stage (D.Univ stage) in
-      let base_tp = NbE.do_el ~stage @@ eval ~stage base in
-      let fam = bind_var x stage base_tp @@ fun _ ->
-        check fam ~stage (D.Univ stage)
-      in
-      S.CodePi (base, S.Lam (x, fam))
+    | CS.Pi (base, x, fam), D.Univ _ ->
+      check_code_pi ~stage base x fam
+    | CS.Expr tm, D.Univ _ ->
+      check_code_expr ~stage tm 
     | CS.Quote tm, D.Expr tp ->
       if stage > 0 then
         S.Quote (check tm ~stage:(stage - 1) tp)
@@ -218,6 +248,60 @@ open struct
       try NbE.equate_tp ~size:0 tp tp'; tm' with
       | NbE.NotConvertible ->
         Error.type_error tp tp'
+
+  and infer_with_stage ~(stage : int) (tm : CS.t) : S.t * D.tp = 
+    Doctor.locate tm.info @@ fun () ->
+    match tm.node with
+    | CS.Ann {tm;tp} ->
+      let tp = check_tp ~stage tp in
+      let vtp = eval_tp ~stage tp in
+      check ~stage tm vtp, vtp
+    | CS.Var nm ->
+      begin
+        match resolve_local nm with
+        | Some ix ->
+          let cell = get_local ix in
+          check_stage ~expected:stage ~actual:cell.stage;
+          S.Local ix, cell.tp
+        | None ->
+          let (gbl, stage, tp) = resolve_global nm in
+          check_stage ~expected:stage ~actual:stage;
+          S.Global gbl, tp
+      end
+    | CS.Hole _ ->
+      Error.type_not_inferrable tm
+    | CS.Pi (base, x, fam) ->
+      let tm = check_code_pi ~stage base x fam in
+      tm, D.Univ stage
+    | CS.Lam (_, _) ->
+      Error.type_not_inferrable tm
+    | CS.Ap (t, ts) ->
+      let f_tm, f_tp = infer_with_stage ~stage t in
+      let tms, tp = check_args stage f_tp ts in
+      S.apps f_tm tms, tp
+    | CS.Expr t ->
+      check_code_expr ~stage t, D.Univ stage
+    | CS.Quote t ->
+      if stage <> 0 then
+        let tm, tp = infer_with_stage ~stage:(stage - 1) t in
+        S.Quote tm, D.Expr tp
+      else
+        Error.cant_stage_zero ()
+    | CS.Splice t ->
+      let tm, tp = infer_with_stage ~stage:(stage + 1) t in
+      begin
+        match tp with
+        | D.Expr tp ->
+          S.Splice tm, tp
+        | _ ->
+          Error.expected_connective "an expression type" tp
+      end
+    | CS.Univ {stage = ustage} ->
+      if stage = ustage then
+        S.CodeUniv stage, D.Univ stage
+      else
+        Error.staging_mismatch stage ustage
+
 
   and infer (tm : CS.t) : S.t * int * D.tp =
     Doctor.locate tm.info @@ fun () ->
@@ -233,18 +317,6 @@ open struct
           S.Global gbl, stage, tp
       end
     | CS.Ap (t, ts) ->
-      let rec check_args stage tp tms =
-        match tp, tms with
-        | tp, [] -> [], tp
-        | (D.Pi (base, _, fam)), (tm :: tms) ->
-          let tm = check tm ~stage base in
-          let vtm = eval ~stage tm in
-          let fib = inst_tp_clo ~stage fam vtm in
-          let tms, ret = check_args stage fib tms in
-          (tm :: tms, ret)
-        | _ ->
-          Error.expected_connective "a pi type" tp
-      in
       let f_tm, f_stage, f_tp = infer t in
       let tms, tp = check_args f_stage f_tp ts in
       S.apps f_tm tms, f_stage, tp
@@ -281,6 +353,11 @@ let check tm ~stage tp =
   let env = create_env 128 in
   Eff.run ~env @@ fun () -> check tm ~stage tp
 
+let infer_with_stage ~stage tm =
+  let env = create_env 128 in
+  Eff.run ~env @@ fun () -> infer_with_stage ~stage tm
+
 let infer tm =
   let env = create_env 128 in
   Eff.run ~env @@ fun () -> infer tm
+

@@ -23,5 +23,7 @@ let rec quote_inner tm =
     S.Splice (quote_inner tm)
   | I.CodePi (base, fam) ->
     S.CodePi (quote_inner base, quote_inner fam)
+  | I.CodeExpr tm ->
+    S.CodeExpr (quote_inner tm)
   | I.CodeUniv stage ->
     S.CodeUniv stage

@@ -1,10 +1,10 @@
 def id : type 0 -> type 0 := (\ x → x)
 
 def wow : type 0 := ↓[ the (⇑[ type 0 ]) ↑[ (the (type 0 → type 0) (λ x → x)) type 0 ] ]
-def hmmm : ⇑[ type 0 ] := ↑[ type 0 → wow ]
+def! hmmm : ⇑[ type 0 ] := ↑[ type 0 → wow ]
 def test : type 0 := ↓[ hmmm ]
 
-#debug on
+def test_hole : type 0 := ?
 
 #stage test
 #print test

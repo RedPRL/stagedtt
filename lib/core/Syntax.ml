@@ -21,6 +21,7 @@ and t = D.syntax =
 
   | CodePi of t * t
   | CodeUniv of int
+  | CodeExpr of t
 
 type tp = D.syntax_tp =
   | TpVar of int
@@ -45,8 +46,6 @@ struct
   let proj = right 4
   let arrow = right 3
   (* [TODO: Reed M, 02/05/2022] Figure out these *)
-  let quote = right 3
-  let splice = right 3
   let colon = nonassoc 2
   let arrow = right 1
   let in_ = nonassoc 0
@@ -59,10 +58,11 @@ let classify_tm =
   | Hole _ -> Prec.atom
   | Lam _ -> Prec.arrow
   | Ap _ -> Prec.juxtaposition
-  | Quote _ -> Prec.quote
-  | Splice _ -> Prec.splice
+  | Quote _ -> Prec.delimited
+  | Splice _ -> Prec.delimited
   | CodePi _ -> Prec.arrow
   | CodeUniv _ -> Prec.atom
+  | CodeExpr _ -> Prec.delimited
 
 let classify_tp =
   function
@@ -103,7 +103,11 @@ let rec pp env =
       (pp (Pp.right_of Prec.juxtaposition env)) base
       (pp (Pp.right_of Prec.juxtaposition env)) fam
   | CodeUniv stage ->
-    Format.fprintf fmt "type %d" stage
+    Format.fprintf fmt "type %d"
+      stage
+  | CodeExpr tm ->
+    Format.fprintf fmt "⇑[ %a ]"
+      (pp env) tm
 
 let rec pp_tp env =
   Pp.parens classify_tp env @@ fun fmt ->
@@ -162,6 +166,9 @@ let rec dump fmt : t -> unit =
   | CodeUniv stage ->
     Format.fprintf fmt "type[%d]"
       stage
+  | CodeExpr tm ->
+    Format.fprintf fmt "expr[%a]"
+      dump tm
 
 and dump_tp fmt : tp -> unit =
   function

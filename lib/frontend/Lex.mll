@@ -32,6 +32,7 @@ let commands =
 let keywords =
   make_table 0 [
     ("def", DEF);
+    ("def!", DEF_BANG);
     ("type", TYPE);
     ("the", THE)
   ]

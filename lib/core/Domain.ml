@@ -31,6 +31,7 @@ and tp = D.value_tp =
 and code = D.code = 
   | CodePi of t * t
   | CodeUniv of int
+  | CodeExpr of t
 
 and neu = D.neu = { hd : hd; spine : frm list } 
 
@@ -74,8 +75,6 @@ struct
   let proj = right 4
   let arrow = right 3
   (* [TODO: Reed M, 02/05/2022] Figure out these *)
-  let quote = right 3
-  let splice = right 3
   let colon = nonassoc 2
   let arrow = right 1
   let in_ = nonassoc 0
@@ -169,6 +168,9 @@ and pp_code env fmt =
       (pp env) fam
   | CodeUniv stage ->
     Format.fprintf fmt "type %d" stage
+  | CodeExpr tm ->
+    Format.fprintf fmt "⇑[ %a ]"
+      (pp env) tm
 
 let rec pp_tp env =
   Pp.parens classify_tp env @@ fun fmt ->

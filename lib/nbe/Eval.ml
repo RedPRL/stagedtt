@@ -50,6 +50,8 @@ open struct
       do_splice (eval t)
     | S.CodePi (base, fam) ->
       D.Code (D.CodePi (eval base, eval fam))
+    | S.CodeExpr tm ->
+      D.Code (D.CodeExpr (eval tm))
     | S.CodeUniv stage ->
       D.Code (D.CodeUniv stage)
 
@@ -112,6 +114,8 @@ open struct
       Graft.value fam @@ fun fam ->
       Graft.build @@
       TB.pi (TB.el base) @@ fun x -> TB.el (TB.ap fam x)
+    | D.CodeExpr tm ->
+      D.Expr (do_el tm)
     | D.CodeUniv stage -> D.Univ stage
 
   (** {1 Closure Instantiation} *)

@@ -57,6 +57,8 @@ open struct
     match code with
     | D.CodePi (base, fam) ->
       D.CodePi (unfold base, unfold fam)
+    | D.CodeExpr tm ->
+      D.CodeExpr (unfold tm)
     | D.CodeUniv i ->
       D.CodeUniv i
 
@@ -90,6 +92,8 @@ open struct
       I.Splice (unfold_inner tm)
     | I.CodePi (base, fam) ->
       I.CodePi (unfold_inner base, unfold_inner fam)
+    | I.CodeExpr tm ->
+      I.CodeExpr (unfold_inner tm)
     | I.CodeUniv stage ->
       I.CodeUniv stage
 end

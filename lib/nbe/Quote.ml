@@ -45,6 +45,8 @@ and quote_code : D.code -> S.t =
   function
   | D.CodePi (base, fam) ->
     S.CodePi (quote base, quote fam)
+  | D.CodeExpr tm ->
+    S.CodeExpr (quote tm)
   | D.CodeUniv stage ->
     S.CodeUniv stage
 

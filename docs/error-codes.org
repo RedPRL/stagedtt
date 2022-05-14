@@ -20,6 +20,8 @@ Couldn't infer type
 Encountered a type hole while in strict mode.
 ** E0011
 Encountered a hole while elaborating a metaprogram.
+** E0012
+The ~def!~ construct expects a term with stage > 0.
 * Warnings 
 ** W0001
 =stagedtt= encountered a feature that is under construction.
