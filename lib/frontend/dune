@@ -1,5 +1,5 @@
 (menhir
- (flags --strict --explain --table)
+ (flags --strict --explain --table --unused-tokens)
  (modules Grammar))
 
 (ocamllex Lex)
