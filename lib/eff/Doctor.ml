@@ -46,24 +46,28 @@ let with_note ?note cause =
       cause
   | _ -> None
 
+let diagnostic diag =
+  Effect.perform (Survivable diag)
+
+let fatal diag =
+  Effect.perform (Fatal diag)
 
 let info ?note ~code msg =
-  let diag =
-    with_cause @@ fun cause ->
-    Diagnostic.error ?cause:(with_note ?note cause) ~code msg
-  in Effect.perform (Survivable diag)
+  with_cause @@ fun cause ->
+  Diagnostic.info ?cause:(with_note ?note cause) ~code msg
+  |> diagnostic
 
 let warning ?note ~code msg =
-  let diag =
-    with_cause @@ fun cause ->
-    Diagnostic.error ?cause:(with_note ?note cause) ~code msg
-  in Effect.perform (Survivable diag)
+  (* let diag = *)
+  with_cause @@ fun cause ->
+  Diagnostic.warning ?cause:(with_note ?note cause) ~code msg
+  |> diagnostic
+(* in Effect.perform (Survivable diag) *)
 
 let error ?note ~code msg =
-  let diag =
-    with_cause @@ fun cause ->
-    Diagnostic.error ?cause:(with_note ?note cause) ~code msg
-  in Effect.perform (Fatal diag)
+  with_cause @@ fun cause ->
+  Diagnostic.error ?cause:(with_note ?note cause) ~code msg
+  |> fatal
 
 let impossible ?note msg =
   let callstack =
@@ -71,12 +75,12 @@ let impossible ?note msg =
     Printexc.raw_backtrace_to_string @@
     Printexc.get_callstack 1000
   in
-  let diag =
-    with_cause @@ fun cause ->
-    let cause =
-      cause
-      |> with_note ?note
-      |> Option.map (Diagnostic.help callstack)
-    in 
-    Diagnostic.impossible ?cause:(with_note ?note cause) ~code:"XXXXX" msg
-  in Effect.perform (Fatal diag)
+  with_cause @@ fun cause ->
+  let cause =
+    cause
+    |> with_note ?note
+    |> Option.map (Diagnostic.help callstack)
+  in 
+  Diagnostic.impossible ?cause:(with_note ?note cause) ~code:"XXXXX" msg
+  |> fatal
+

@@ -78,6 +78,8 @@ open struct
         | `Unstaged (_, _, syn) -> Lazy.force syn
         | `Staged (_, _, syn, _) -> Lazy.force syn
       end
+    | I.Hole nm ->
+      I.Hole nm
     | I.Lam (x, body) ->
       I.Lam (x, unfold_inner body)
     | I.Ap (fn, arg) -> 

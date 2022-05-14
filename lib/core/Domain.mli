@@ -32,6 +32,7 @@ and neu = D.neu = { hd : hd; spine : frm list }
 and hd = D.hd = 
   | Local of int
   | Global of global
+  | Hole of string option
 
 and global =
   [ `Unstaged of Ident.path * D.value Lazy.t * D.inner Lazy.t ]
@@ -43,6 +44,7 @@ and frm = D.frm =
 
 val local : int -> t
 val global : Ident.path -> t Lazy.t -> D.inner Lazy.t -> t 
+val hole : string option -> t
 val push_frm : neu -> frm -> unfold:(t -> t) -> stage:(D.inner -> D.inner)-> neu
 
 (** {1 Pretty Printing} *)

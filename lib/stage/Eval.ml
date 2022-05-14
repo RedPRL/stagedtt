@@ -1,4 +1,3 @@
-open Prelude
 open Core
 open Eff
 
@@ -68,6 +67,8 @@ open struct
       get_outer_local ix
     | S.Global gbl ->
       expand_outer_global gbl
+    | S.Hole _ ->
+      Doctor.impossible "Cannot have holes in metaprograms!"
     | S.Lam (x, body) ->
       O.Lam (x, clo body)
     | S.Ap (f, a) ->
@@ -92,6 +93,8 @@ open struct
       get_inner_local ix
     | S.Global gbl ->
       I.Global gbl
+    | S.Hole nm ->
+      I.Hole nm
     | S.Lam (x, body) ->
       I.Lam (x, bind_inner @@ fun () -> eval_inner body)
     | S.Ap (fn, a) ->
@@ -128,9 +131,7 @@ open struct
 end
 
 let eval_inner tm =
-  Debug.print "Evaluating Inner@.";
   let stage = Staging.get_stage () in
-  Debug.print "Handled Stage Effect!@.";
   let env = { locals = O.Env.empty; stage } in
   Reader.run ~env @@ fun () -> eval_inner tm
 

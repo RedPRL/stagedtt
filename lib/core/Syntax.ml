@@ -11,6 +11,7 @@ type global =
 and t = D.syntax =
   | Local of int
   | Global of global
+  | Hole of string option
 
   | Lam of Ident.t * t
   | Ap of t * t
@@ -55,6 +56,7 @@ let classify_tm =
   function
   | Local _ -> Prec.atom
   | Global _ -> Prec.atom
+  | Hole _ -> Prec.atom
   | Lam _ -> Prec.arrow
   | Ap _ -> Prec.juxtaposition
   | Quote _ -> Prec.quote
@@ -78,6 +80,9 @@ let rec pp env =
   | Global (`Unstaged (name, _, _))
   | Global (`Staged (name, _, _, _)) ->
     Ident.pp_path fmt name
+  |  Hole nm ->
+    Format.fprintf fmt "?%a"
+      (Format.pp_print_option Format.pp_print_string) nm
   | Lam (x, body) ->
     let x, env = Pp.bind_var x env in
     Format.fprintf fmt "λ %s → %a"
@@ -134,6 +139,9 @@ let rec dump fmt : t -> unit =
     Format.fprintf fmt "staged[%a]"
       Ident.pp_path
       nm
+  |  Hole nm ->
+    Format.fprintf fmt "hole[%a]"
+      (Format.pp_print_option Format.pp_print_string) nm
   | Lam (_, body) ->
     Format.fprintf fmt "lam[%a]"
       dump body

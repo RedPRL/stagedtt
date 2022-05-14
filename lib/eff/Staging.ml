@@ -1,5 +1,3 @@
-open Prelude
-
 type mode =
   | Inner
   | Outer

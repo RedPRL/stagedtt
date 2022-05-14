@@ -46,11 +46,11 @@ let not_implemented string =
 let elab tp tm =
   match tp with
   | Some tp ->
-    Debug.print "Elaborating type %a@." CS.dump tp;
+    Debug.print ~file:"Execute.ml" "Elaborating type %a@." CS.dump tp;
     let (tp, stage) = Refiner.infer_tp tp in
-    Debug.print "Evaluating type %a@." S.dump_tp tp;
+    Debug.print ~file:"Execute.ml" "Evaluating type %a@." S.dump_tp tp;
     let vtp = NbE.eval_tp ~stage ~env:D.Env.empty tp in
-    Debug.print "Checking term %a@." CS.dump tm;
+    Debug.print  ~file:"Execute.ml" "Checking term %a@." CS.dump tm;
     let tm = Refiner.check tm ~stage vtp in
     (tm, stage, vtp)
   | None ->

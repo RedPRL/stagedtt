@@ -7,7 +7,11 @@ type _ Effect.t +=
 val run : Lexing.lexbuf -> (unit -> 'a) -> 'a
 val locate : Span.t option -> (unit -> 'a) -> 'a
 
+val diagnostic : Diagnostic.t -> unit
+val fatal : Diagnostic.t -> 'a
+
 val info : ?note:string -> code:string -> string -> unit
 val warning : ?note:string -> code:string -> string -> unit
 val error : ?note:string -> code:string -> string -> 'a
 val impossible : ?note:string -> string -> 'a
+

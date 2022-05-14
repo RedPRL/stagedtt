@@ -59,6 +59,7 @@ and quote_hd : D.hd -> S.t =
   function
   | D.Local lvl -> S.Local (Quoting.level_to_index lvl)
   | D.Global gbl -> S.Global (gbl :> S.global)
+  | D.Hole nm -> S.Hole nm
 
 and quote_spine (tm : S.t) : D.frm list -> S.t =
   function

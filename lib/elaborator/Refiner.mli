@@ -1,5 +1,3 @@
-open Prelude
-
 module S := Core.Syntax
 module D := Core.Domain
 module O := Core.Outer

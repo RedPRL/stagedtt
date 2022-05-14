@@ -11,6 +11,8 @@ let rec quote_inner tm =
     S.Local (Quoting.level_to_index lvl)
   | I.Global gbl ->
     S.Global gbl
+  | I.Hole nm ->
+    S.Hole nm
   | I.Lam (x, body) ->
     S.Lam (x, Quoting.bind_var @@ fun _ -> quote_inner body)
   | I.Ap (fn, arg) ->

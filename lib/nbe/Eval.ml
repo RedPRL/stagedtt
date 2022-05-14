@@ -38,6 +38,8 @@ open struct
       D.global path v inner
     | S.Global (`Staged (path, v, inner, _)) ->
       D.global path v inner
+    | S.Hole nm ->
+      D.hole nm
     | S.Lam (x, body) ->
       D.Lam (x, clo body)
     | S.Ap (f, a) ->

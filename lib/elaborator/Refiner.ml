@@ -20,12 +20,15 @@ open struct
 
   type env = 
     { names : cell Ctx.t;
-      values : D.env }
+      values : D.env;
+      has_holes : bool;
+      strict_mode : bool
+    }
 
-  let create_env size =
+  let create_env ?(strict_mode = false) size =
     let names = Ctx.create size in
     let values = D.Env.empty in
-    { names; values }
+    { names; values; strict_mode; has_holes = false }
 
   module Eff = Algaeff.Reader.Make (struct type nonrec env = env end)
 
@@ -120,6 +123,32 @@ open struct
       in Doctor.error ~note ~code:"E0009" msg
   end
 
+  (** {1 Type Holes} *)
+  let hole ~stage nm tp =
+    let tp = quote_tp tp in
+    let env = Eff.read () in
+    if env.strict_mode then
+      let msg = "Encountered Hole in Strict Mode." in
+      let note =
+        Format.asprintf "Encountered a hole of type '%a'"
+          S.dump_tp tp
+      in Doctor.error ~note ~code:"E0010" msg
+    else if stage <> 0 then
+      let msg = "Encountered Hole in a metaprogram." in
+      let note =
+        Format.asprintf "Encountered a hole of type '%a' while in stage %d"
+          S.dump_tp tp
+          stage
+      in Doctor.error ~note ~code:"E0011" msg
+    else
+      let msg = "Type Hole" in
+      let note =
+        Format.asprintf "Encountered a hole of type '%a'"
+          S.dump_tp tp
+      in
+      Doctor.warning ~note ~code:"W0002" msg;
+      S.Hole nm
+
   (** {1 Elaborating Types} *)
 
   let rec check_tp (tm : CS.t) ~(stage : int) : S.tp =
@@ -182,6 +211,8 @@ open struct
         S.Quote (check tm ~stage:(stage - 1) tp)
       else
         Error.cant_stage_zero ()
+    | CS.Hole nm, tp ->
+      hole ~stage nm tp
     | _ ->
       let tm', _, tp' = infer tm in
       try NbE.equate_tp ~size:0 tp tp'; tm' with

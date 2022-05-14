@@ -16,9 +16,15 @@ There was a connective mismatch
 We tried to quote a value to level 0.
 ** E0009
 Couldn't infer type
+** E0010
+Encountered a type hole while in strict mode.
+** E0011
+Encountered a hole while elaborating a metaprogram.
 * Warnings 
 ** W0001
 =stagedtt= encountered a feature that is under construction.
+** W0002
+Type holes.
 * Info
 ** I0001
 =stagedtt= encountered a ~#print~ directive.

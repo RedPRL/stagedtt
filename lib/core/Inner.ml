@@ -4,6 +4,7 @@ module D = Data
 type t = D.inner =
   | Local of int
   | Global of global
+  | Hole of string option
 
   | Lam of Ident.t * t
   | Ap of t * t
