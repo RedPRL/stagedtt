@@ -1,4 +1,6 @@
 {
+open Prelude
+open Span
 open Lexing
 open Grammar
 
@@ -30,15 +32,12 @@ let commands =
 let keywords =
   make_table 0 [
     ("def", DEF);
+    ("def!", DEF_BANG);
     ("type", TYPE);
     ("the", THE)
   ]
 
 (* Some Lexing Utilities *)
-type span =
-  {start : position;
-   stop : position}
-
 let last_token lexbuf = 
   let tok = lexeme lexbuf in
   if tok = "" then None else Some tok
@@ -60,7 +59,11 @@ let atom_initial =
 
 let atom_subsequent =
   [^                         '(' ')' '[' ']' '{' '}' '<' '>' '.' '#' '\\' '@' '*' '^' ':' ',' ';' '|' '=' '"'     ' ' '\t' '\n' '\r']
+
 let atom = atom_initial atom_subsequent*
+
+let hole = '?' atom_subsequent*
+
 
 let number =
   ['0'-'9']+
@@ -128,6 +131,18 @@ and real_token = parse
       match Hashtbl.find commands input with
       | tok -> tok
       | exception Not_found -> Printf.eprintf "Unknown Command: %s\n" (lexeme lexbuf); token lexbuf
+    }
+  | "?"
+    { HOLE None }
+  | hole
+    {
+      let str = lexeme lexbuf in
+      let len = String.length str in
+      if len = 1 then
+        HOLE None
+      else
+        let hole_name = String.sub str 1 (String.length str - 1) in
+        HOLE (Some hole_name)
     }
   | atom
     {

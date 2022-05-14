@@ -4,6 +4,7 @@ module D = Data
 type t = D.inner =
   | Local of int
   | Global of global
+  | Hole of string option
 
   | Lam of Ident.t * t
   | Ap of t * t
@@ -13,6 +14,7 @@ type t = D.inner =
 
   | CodePi of t * t
   | CodeUniv of int
+  | CodeExpr of t
 
 and global =
   [ `Unstaged of Ident.path * D.value Lazy.t * D.inner Lazy.t

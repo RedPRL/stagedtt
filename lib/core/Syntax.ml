@@ -11,6 +11,7 @@ type global =
 and t = D.syntax =
   | Local of int
   | Global of global
+  | Hole of string option
 
   | Lam of Ident.t * t
   | Ap of t * t
@@ -20,6 +21,7 @@ and t = D.syntax =
 
   | CodePi of t * t
   | CodeUniv of int
+  | CodeExpr of t
 
 type tp = D.syntax_tp =
   | TpVar of int
@@ -44,8 +46,6 @@ struct
   let proj = right 4
   let arrow = right 3
   (* [TODO: Reed M, 02/05/2022] Figure out these *)
-  let quote = right 3
-  let splice = right 3
   let colon = nonassoc 2
   let arrow = right 1
   let in_ = nonassoc 0
@@ -55,12 +55,14 @@ let classify_tm =
   function
   | Local _ -> Prec.atom
   | Global _ -> Prec.atom
+  | Hole _ -> Prec.atom
   | Lam _ -> Prec.arrow
   | Ap _ -> Prec.juxtaposition
-  | Quote _ -> Prec.quote
-  | Splice _ -> Prec.splice
+  | Quote _ -> Prec.delimited
+  | Splice _ -> Prec.delimited
   | CodePi _ -> Prec.arrow
   | CodeUniv _ -> Prec.atom
+  | CodeExpr _ -> Prec.delimited
 
 let classify_tp =
   function
@@ -78,6 +80,9 @@ let rec pp env =
   | Global (`Unstaged (name, _, _))
   | Global (`Staged (name, _, _, _)) ->
     Ident.pp_path fmt name
+  |  Hole nm ->
+    Format.fprintf fmt "?%a"
+      (Format.pp_print_option Format.pp_print_string) nm
   | Lam (x, body) ->
     let x, env = Pp.bind_var x env in
     Format.fprintf fmt "λ %s → %a"
@@ -98,7 +103,11 @@ let rec pp env =
       (pp (Pp.right_of Prec.juxtaposition env)) base
       (pp (Pp.right_of Prec.juxtaposition env)) fam
   | CodeUniv stage ->
-    Format.fprintf fmt "type %d" stage
+    Format.fprintf fmt "type %d"
+      stage
+  | CodeExpr tm ->
+    Format.fprintf fmt "⇑[ %a ]"
+      (pp env) tm
 
 let rec pp_tp env =
   Pp.parens classify_tp env @@ fun fmt ->
@@ -134,6 +143,9 @@ let rec dump fmt : t -> unit =
     Format.fprintf fmt "staged[%a]"
       Ident.pp_path
       nm
+  |  Hole nm ->
+    Format.fprintf fmt "hole[%a]"
+      (Format.pp_print_option Format.pp_print_string) nm
   | Lam (_, body) ->
     Format.fprintf fmt "lam[%a]"
       dump body
@@ -154,6 +166,9 @@ let rec dump fmt : t -> unit =
   | CodeUniv stage ->
     Format.fprintf fmt "type[%d]"
       stage
+  | CodeExpr tm ->
+    Format.fprintf fmt "expr[%a]"
+      dump tm
 
 and dump_tp fmt : tp -> unit =
   function

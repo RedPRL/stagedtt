@@ -1,4 +1,5 @@
 open Prelude
+open Eff
 
 module Ctx = OrderedHashTbl.Make(Ident)
 
@@ -19,12 +20,15 @@ open struct
 
   type env = 
     { names : cell Ctx.t;
-      values : D.env }
+      values : D.env;
+      has_holes : bool;
+      strict_mode : bool
+    }
 
-  let create_env size =
+  let create_env ?(strict_mode = false) size =
     let names = Ctx.create size in
     let values = D.Env.empty in
-    { names; values }
+    { names; values; strict_mode; has_holes = false }
 
   module Eff = Algaeff.Reader.Make (struct type nonrec env = env end)
 
@@ -76,66 +80,93 @@ open struct
   module Error =
   struct
     let type_error expected actual =
-      let msg = Format.asprintf "Expected '%a' = '%a'@."
+      let msg = "Type Error" in
+      let note = Format.asprintf "Expected '%a' = '%a'@."
           (D.pp_tp Pp.init) expected
           (D.pp_tp Pp.init) actual
-      in
-      let diag = Diagnostic.error ~code:"E0004" msg in
-      raise @@ Diagnostic.Fatal diag
+      in Doctor.error ~note ~code:"E0004" msg
 
     let staging_mismatch expected actual =
-      let msg =
+      let msg = "Staging Mismatch" in
+      let note =
         Format.asprintf "Expected staging level '%d' but got '%d'"
           expected
           actual
-      in
-      let diag = Diagnostic.error ~code:"E0005" msg in
-      raise @@ Diagnostic.Fatal diag
+      in Doctor.error ~note ~code:"E0005" msg
 
     let staging_not_inferrable tp =
-      let msg =
+      let msg = "Inference failure" in
+      let note =
         Format.asprintf "Could not infer staging level of type '%a'"
           CS.dump tp
-      in
-      let diag = Diagnostic.error ~code:"E0006" msg in
-      raise @@ Diagnostic.Fatal diag
+      in Doctor.error ~note ~code:"E0006" msg
 
     let expected_connective conn actual =
-      let msg =
+      let msg = "Connective Mismatch" in
+      let note =
         Format.asprintf "Expected a %s but got '%a'"
           conn
           (D.pp_tp Pp.init) actual
-      in
-      let diag = Diagnostic.error ~code:"E0007" msg in
-      raise @@ Diagnostic.Fatal diag
+      in Doctor.error ~note ~code:"E0007" msg
 
     let cant_stage_zero () =
-      let msg =
-        Format.asprintf "Tried to quote an expression to level 0."
-      in
-      let diag = Diagnostic.error ~code:"E0008" msg in
-      raise @@ Diagnostic.Fatal diag
+      let msg = "Staging Error" in
+      let note =
+        Format.asprintf "Tried to go below stage 0."
+      in Doctor.error ~note ~code:"E0008" msg
 
     let type_not_inferrable tp =
-      let msg =
+      let msg = "Inference Error" in
+      let note =
         Format.asprintf "Could not infer type of '%a'"
           CS.dump tp
-      in
-      let diag = Diagnostic.error ~code:"E0009" msg in
-      raise @@ Diagnostic.Fatal diag
+      in Doctor.error ~note ~code:"E0009" msg
   end
+
+  (** {1 Type Holes} *)
+  let hole ~stage nm tp =
+    let tp = quote_tp tp in
+    let env = Eff.read () in
+    if env.strict_mode then
+      let msg = "Encountered Hole in Strict Mode." in
+      let note =
+        Format.asprintf "Encountered a hole of type '%a'"
+          S.dump_tp tp
+      in Doctor.error ~note ~code:"E0010" msg
+    else if stage <> 0 then
+      let msg = "Encountered Hole in a metaprogram." in
+      let note =
+        Format.asprintf "Encountered a hole of type '%a' while in stage %d"
+          S.dump_tp tp
+          stage
+      in Doctor.error ~note ~code:"E0011" msg
+    else
+      let msg = "Type Hole" in
+      let note =
+        Format.asprintf "Encountered a hole of type '%a'"
+          S.dump_tp tp
+      in
+      Doctor.warning ~note ~code:"W0002" msg;
+      S.Hole nm
+
+  let check_stage ~expected ~actual =
+    if expected = actual then
+      ()
+    else
+      Error.staging_mismatch expected actual
 
   (** {1 Elaborating Types} *)
 
   let rec check_tp (tm : CS.t) ~(stage : int) : S.tp =
-    match tm with
+    Doctor.locate tm.info @@ fun () ->
+    match tm.node with
     | CS.Pi (base, name, fam) ->
       let base = check_tp ~stage base in
       let vbase = eval_tp ~stage base in
       let fam = bind_var name stage vbase @@ fun _ ->
         check_tp fam ~stage
       in S.Pi (base, name, fam)
-    | tm ->
+    | _ ->
       let (tp, inferred_stage) = infer_tp tm in
       if stage = inferred_stage then
         tp
@@ -143,7 +174,8 @@ open struct
         Error.staging_mismatch stage inferred_stage
 
   and infer_tp (tm : CS.t) : (S.tp * int) =
-    match tm with
+    Doctor.locate tm.info @@ fun () ->
+    match tm.node with
     | CS.Pi (base, ident, fam) ->
       let base, base_stage = infer_tp base in
       let vbase = eval_tp ~stage:base_stage base in
@@ -158,37 +190,122 @@ open struct
     | _ ->
       Error.staging_not_inferrable tm
 
+  and check_code_pi ~stage base x fam =
+    let base = check base ~stage (D.Univ stage) in
+    let base_tp = NbE.do_el ~stage @@ eval ~stage base in
+    let fam = bind_var x stage base_tp @@ fun _ ->
+      check fam ~stage (D.Univ stage)
+    in
+    S.CodePi (base, S.Lam (x, fam))
+
+  and check_code_expr ~stage tm =
+    if stage <> 0 then
+      let tm = check ~stage:(stage - 1) tm (D.Univ (stage - 1)) in
+      S.CodeExpr tm
+    else
+      Error.cant_stage_zero ()
+
+  and check_args stage tp tms =
+    match tp, tms with
+    | tp, [] -> [], tp
+    | (D.Pi (base, _, fam)), (tm :: tms) ->
+      let tm = check tm ~stage base in
+      let vtm = eval ~stage tm in
+      let fib = inst_tp_clo ~stage fam vtm in
+      let tms, ret = check_args stage fib tms in
+      (tm :: tms, ret)
+    | _ ->
+      Error.expected_connective "a pi type" tp
+
   (** {1 Elaborating Terms} *)
   and check (tm : CS.t) ~(stage : int) (tp : D.tp) : S.t =
-    match tm, tp with
-    | CS.Lam ([], body), tp ->
-      check body ~stage tp
-    | CS.Lam (name :: names, body), D.Pi (base, _, fam) ->
-      bind_var name stage base @@ fun arg ->
-      let fib = inst_tp_clo ~stage fam arg in
-      let body = check (CS.Lam (names, body)) ~stage fib in
-      S.Lam(name, body)
-    | CS.Pi (base, x, fam), D.Univ stage ->
-      let base = check base ~stage (D.Univ stage) in
-      let base_tp = NbE.do_el ~stage @@ eval ~stage base in
-      let fam = bind_var x stage base_tp @@ fun _ ->
-        check fam ~stage (D.Univ stage)
+    Doctor.locate tm.info @@ fun () ->
+    match tm.node, tp with
+    | CS.Lam (names, body), D.Pi (base, _, fam) ->
+      let rec check_lams names tp =
+        match names with
+        | [] -> check ~stage body tp
+        | name :: names ->
+          bind_var name stage base @@ fun arg ->
+          let fib = inst_tp_clo ~stage fam arg in
+          let body = check_lams names fib in
+          S.Lam(name, body)
       in
-      S.CodePi (base, S.Lam (x, fam))
+      check_lams names tp
+    | CS.Pi (base, x, fam), D.Univ _ ->
+      check_code_pi ~stage base x fam
+    | CS.Expr tm, D.Univ _ ->
+      check_code_expr ~stage tm 
     | CS.Quote tm, D.Expr tp ->
       if stage > 0 then
         S.Quote (check tm ~stage:(stage - 1) tp)
       else
         Error.cant_stage_zero ()
+    | CS.Hole nm, tp ->
+      hole ~stage nm tp
     | _ ->
       let tm', _, tp' = infer tm in
       try NbE.equate_tp ~size:0 tp tp'; tm' with
       | NbE.NotConvertible ->
         Error.type_error tp tp'
 
-  (* [TODO: Reed M, 02/05/2022] Should I return the stage here? *)
+  and infer_with_stage ~(stage : int) (tm : CS.t) : S.t * D.tp = 
+    Doctor.locate tm.info @@ fun () ->
+    match tm.node with
+    | CS.Ann {tm;tp} ->
+      let tp = check_tp ~stage tp in
+      let vtp = eval_tp ~stage tp in
+      check ~stage tm vtp, vtp
+    | CS.Var nm ->
+      begin
+        match resolve_local nm with
+        | Some ix ->
+          let cell = get_local ix in
+          check_stage ~expected:stage ~actual:cell.stage;
+          S.Local ix, cell.tp
+        | None ->
+          let (gbl, stage, tp) = resolve_global nm in
+          check_stage ~expected:stage ~actual:stage;
+          S.Global gbl, tp
+      end
+    | CS.Hole _ ->
+      Error.type_not_inferrable tm
+    | CS.Pi (base, x, fam) ->
+      let tm = check_code_pi ~stage base x fam in
+      tm, D.Univ stage
+    | CS.Lam (_, _) ->
+      Error.type_not_inferrable tm
+    | CS.Ap (t, ts) ->
+      let f_tm, f_tp = infer_with_stage ~stage t in
+      let tms, tp = check_args stage f_tp ts in
+      S.apps f_tm tms, tp
+    | CS.Expr t ->
+      check_code_expr ~stage t, D.Univ stage
+    | CS.Quote t ->
+      if stage <> 0 then
+        let tm, tp = infer_with_stage ~stage:(stage - 1) t in
+        S.Quote tm, D.Expr tp
+      else
+        Error.cant_stage_zero ()
+    | CS.Splice t ->
+      let tm, tp = infer_with_stage ~stage:(stage + 1) t in
+      begin
+        match tp with
+        | D.Expr tp ->
+          S.Splice tm, tp
+        | _ ->
+          Error.expected_connective "an expression type" tp
+      end
+    | CS.Univ {stage = ustage} ->
+      if stage = ustage then
+        S.CodeUniv stage, D.Univ stage
+      else
+        Error.staging_mismatch stage ustage
+
+
   and infer (tm : CS.t) : S.t * int * D.tp =
-    match tm with
+    Doctor.locate tm.info @@ fun () ->
+    match tm.node with
     | CS.Var nm ->
       begin
         match resolve_local nm with
@@ -200,18 +317,6 @@ open struct
           S.Global gbl, stage, tp
       end
     | CS.Ap (t, ts) ->
-      let rec check_args stage tp tms =
-        match tp, tms with
-        | tp, [] -> [], tp
-        | (D.Pi (base, _, fam)), (tm :: tms) ->
-          let tm = check tm ~stage base in
-          let vtm = eval ~stage tm in
-          let fib = inst_tp_clo ~stage fam vtm in
-          let tms, ret = check_args stage fib tms in
-          (tm :: tms, ret)
-        | _ ->
-          Error.expected_connective "a pi type" tp
-      in
       let f_tm, f_stage, f_tp = infer t in
       let tms, tp = check_args f_stage f_tp ts in
       S.apps f_tm tms, f_stage, tp
@@ -248,6 +353,11 @@ let check tm ~stage tp =
   let env = create_env 128 in
   Eff.run ~env @@ fun () -> check tm ~stage tp
 
+let infer_with_stage ~stage tm =
+  let env = create_env 128 in
+  Eff.run ~env @@ fun () -> infer_with_stage ~stage tm
+
 let infer tm =
   let env = create_env 128 in
   Eff.run ~env @@ fun () -> infer tm
+

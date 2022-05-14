@@ -21,6 +21,6 @@ let debug_formatter =
   let flush () = Stdlib.flush Stdlib.stderr in
   Format.make_formatter out flush
 
-let print (fmt : ('a, Format.formatter, unit) format) =
-  Format.fprintf debug_formatter "[DEBUG] ";
+let print ~file (fmt : ('a, Format.formatter, unit) format) =
+  Format.fprintf debug_formatter "DEBUG[%s] " file;
   Format.fprintf debug_formatter fmt

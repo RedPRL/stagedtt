@@ -9,6 +9,7 @@ type global =
 and t = D.syntax =
   | Local of int
   | Global of global
+  | Hole of string option
 
   | Lam of Ident.t * t
   | Ap of t * t
@@ -18,6 +19,7 @@ and t = D.syntax =
 
   | CodePi of t * t
   | CodeUniv of int
+  | CodeExpr of t
 
 type tp = D.syntax_tp =
   | TpVar of int

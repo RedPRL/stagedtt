@@ -1,7 +1,9 @@
 open Prelude
+open Core
+open Eff
+
 open Command
 open Elaborator
-open Core
 
 
 module CS = Elaborator.Syntax
@@ -41,14 +43,31 @@ let not_implemented string =
   Diagnostic.pp Format.err_formatter diag;
   Continue
 
+let expected_staged () =
+  let message = Format.asprintf "The 'def!' construct requires the term to be of stage > 0, but it wasn't." in
+  let diag = Diagnostic.warning ~code:"E0012" message in
+  Diagnostic.pp Format.err_formatter diag
+
 let elab tp tm =
   match tp with
   | Some tp ->
-    Debug.print "Elaborating type %a@." CS.dump tp;
+    Debug.print ~file:"Execute.ml" "Elaborating type %a@." CS.dump tp;
+    let tp = Refiner.check_tp ~stage:0 tp in
+    Debug.print ~file:"Execute.ml" "Evaluating type %a@." S.dump_tp tp;
+    let vtp = NbE.eval_tp ~stage:0 ~env:D.Env.empty tp in
+    Debug.print  ~file:"Execute.ml" "Checking term %a@." CS.dump tm;
+    let tm = Refiner.check tm ~stage:0 vtp in
+    (tm, vtp)
+  | None ->
+    Refiner.infer_with_stage ~stage:0 tm
+
+let elab_staged tp tm =
+  match tp with
+  | Some tp ->
     let (tp, stage) = Refiner.infer_tp tp in
-    Debug.print "Evaluating type %a@." S.dump_tp tp;
+    Debug.print ~file:"Execute.ml" "Evaluating type %a@." S.dump_tp tp;
     let vtp = NbE.eval_tp ~stage ~env:D.Env.empty tp in
-    Debug.print "Checking term %a@." CS.dump tm;
+    Debug.print  ~file:"Execute.ml" "Checking term %a@." CS.dump tm;
     let tm = Refiner.check tm ~stage vtp in
     (tm, stage, vtp)
   | None ->
@@ -68,40 +87,39 @@ let resolve_inner path =
 
 let exec_command : command -> status =
   function
-  | Declare {ident = User path; tp; tm} ->
-    let (tm, stage, vtp) = elab tp tm in
-    let vtm =
-      lazy begin
-        NbE.eval ~stage ~env:D.Env.empty tm
-      end in
-    let itm =
-      lazy begin
-        Stage.eval_inner ~stage tm
-      end
-    in
-    let expand =
-      Stage.eval_outer ~stage tm
-    in
-    let gbl : S.global =
-      if stage = 0 then
-        `Unstaged (path, vtm, itm)
-      else
-        `Staged (path, vtm, itm, expand)
-    in
-    Namespace.define path gbl stage vtp;
+  | Def {ident = User path; tp; tm} ->
+    let (tm, vtp) = elab tp tm in
+    let vtm = lazy (NbE.eval ~stage:0 ~env:D.Env.empty tm) in
+    let itm = lazy (Stage.eval_inner ~stage:0 tm) in
+    Namespace.define path (`Unstaged (path, vtm, itm)) 0 vtp;
     Continue
-  | Declare {ident = Anon; tp; tm} ->
-    let (_, _, _) = elab tp tm in
+  | Def {ident = Anon; tp; tm} ->
+    let _ = elab tp tm in
+    Continue
+  | DefStaged { ident = User path; tp; tm } ->
+    let (tm, stage, vtp) = elab_staged tp tm in
+    let vtm = lazy (NbE.eval ~stage ~env:D.Env.empty tm) in
+    let itm = lazy (Stage.eval_inner ~stage tm) in
+    let otm = Stage.eval_outer ~stage tm in
+    if stage = 0 then
+      expected_staged ()
+    else
+      Namespace.define path (`Staged (path, vtm, itm, otm)) 0 vtp;
+    Continue
+  | DefStaged { ident = Anon; tp; tm } ->
+    let (_, stage, _) = elab_staged tp tm in
+    if stage = 0 then
+      expected_staged ();
     Continue
   | Fail {message; tp; tm} ->
     begin
       try
-        let (_, _, _) = elab tp tm in
+        let _ = elab tp tm in
         Diagnostic.pp Format.err_formatter @@
         Diagnostic.error ~code:"E0003" @@
         Format.asprintf "Expected failure '%s'." message
       with
-      | Diagnostic.Fatal diag ->
+      | [%effect? Doctor.Fatal diag, _] ->
         Diagnostic.pp Format.std_formatter @@
         Diagnostic.info ~code:"I0003" @@
         Format.asprintf "Encountered expected failure@.@[<v 2>%a@]"
@@ -151,12 +169,17 @@ let rec exec : command list -> unit =
 
 let load input =
   match Loader.load input with
-  | Ok cmds ->
+  | Ok (cmds, lexbuf) ->
     begin
       try
+        Doctor.run lexbuf @@ fun () ->
         Namespace.run @@ fun () ->
         exec cmds
-      with Diagnostic.Fatal diag ->
-        Diagnostic.pp Format.err_formatter diag
+      with
+      | [%effect? Doctor.Fatal diag, _] ->
+        Diagnostic.pp Format.err_formatter diag;
+      | [%effect? Doctor.Survivable diag, k] ->
+        Diagnostic.pp Format.std_formatter diag;
+        Effect.Deep.continue k ()
     end
   | Error diagnostic -> Diagnostic.pp Format.err_formatter diagnostic

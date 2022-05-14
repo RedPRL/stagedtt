@@ -1,4 +1,3 @@
-open Prelude
 open Core
 open Eff
 
@@ -14,11 +13,6 @@ open struct
 
   module Reader = Algaeff.Reader.Make (struct type nonrec env = env end)
 
-  let impossible msg =
-    Format.asprintf msg
-    |> Diagnostic.impossible ~code:"XSTAGE"
-    |> Diagnostic.fatal
-
   let get_locals () =
     (Reader.read()).locals
 
@@ -27,14 +21,14 @@ open struct
     match O.Env.lookup_lvl env ix with
     | O.Outer otm -> otm
     | O.Inner _ ->
-      impossible "Expected an outer variable in 'get_outer_local'"
+      Doctor.impossible "Expected an outer variable in 'get_outer_local'"
 
   let get_inner_local ix =
     let env = get_locals () in
     match O.Env.lookup_lvl env ix with
     | O.Inner itm -> itm
     | O.Outer _ ->
-      impossible "Expected an inner variable in 'get_inner_local'"
+      Doctor.impossible "Expected an inner variable in 'get_inner_local'"
 
   let incr_stage k =
     let stage = (Reader.read ()).stage in
@@ -55,7 +49,7 @@ open struct
   let expand_outer_global (gbl : S.global) =
     match gbl with
     | `Unstaged _ ->
-      impossible "Encountered a global variable of stage 0 when evaluating outer syntax."
+      Doctor.impossible "Encountered a global variable of stage 0 when evaluating outer syntax."
     | `Staged (_, _, _, expand) ->
       let stage = (Reader.read ()).stage in
       expand stage
@@ -73,6 +67,8 @@ open struct
       get_outer_local ix
     | S.Global gbl ->
       expand_outer_global gbl
+    | S.Hole _ ->
+      Doctor.impossible "Cannot have holes in metaprograms!"
     | S.Lam (x, body) ->
       O.Lam (x, clo body)
     | S.Ap (f, a) ->
@@ -88,6 +84,8 @@ open struct
       incr_stage @@ fun _ -> eval_outer tm
     | S.CodePi _ ->
       O.Irrelevant
+    | S.CodeExpr _ ->
+      O.Irrelevant
     | S.CodeUniv _ ->
       O.Irrelevant
 
@@ -97,6 +95,8 @@ open struct
       get_inner_local ix
     | S.Global gbl ->
       I.Global gbl
+    | S.Hole nm ->
+      I.Hole nm
     | S.Lam (x, body) ->
       I.Lam (x, bind_inner @@ fun () -> eval_inner body)
     | S.Ap (fn, a) ->
@@ -112,18 +112,20 @@ open struct
       end
     | S.CodePi (base, fam) ->
       I.CodePi (eval_inner base, eval_inner fam)
+    | S.CodeExpr tm ->
+      I.CodeExpr (eval_inner tm)
     | S.CodeUniv stage -> I.CodeUniv stage
 
   and do_outer_ap fn a =
     match fn with
     | O.Lam (_, clo) -> inst_tm_clo clo a
     | _ -> 
-      impossible "Expected a function in do_outer_ap"
+      Doctor.impossible "Expected a function in do_outer_ap"
 
   and do_splice (otm : O.t) =
     match otm with
     | O.Quote tm -> tm
-    | _ -> impossible "Expected a quoted inner value in do_splice"
+    | _ -> Doctor.impossible "Expected a quoted inner value in do_splice"
 
   and inst_tm_clo clo v =
     match clo with
@@ -133,9 +135,7 @@ open struct
 end
 
 let eval_inner tm =
-  Debug.print "Evaluating Inner@.";
   let stage = Staging.get_stage () in
-  Debug.print "Handled Stage Effect!@.";
   let env = { locals = O.Env.empty; stage } in
   Reader.run ~env @@ fun () -> eval_inner tm
 

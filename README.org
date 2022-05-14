@@ -67,7 +67,7 @@ may have different requirements, but the process should be similar.
 
 First, we will need to add some pins for some merlin deps.
 #+BEGIN_SRC shell
-  opam switch add dot-merlin-reader git+https://github.com/ocaml/merlin#500
+  opam pin add dot-merlin-reader git+https://github.com/ocaml/merlin#500
 #+END_SRC
 
 
@@ -75,6 +75,12 @@ Then, we can install merlin as per usual.
 
 #+BEGIN_SRC shell
   opam install merlin 
+#+END_SRC
+
+We should also install [[https://github.com/OCamlPro/ocp-indent][ocp-indent]], which is our preferred code
+formatter for the codebase.
+#+BEGIN_SRC shell
+  opam install ocp-indent
 #+END_SRC
 * References
 This work is inspired by some of the work by András Kovács, namely

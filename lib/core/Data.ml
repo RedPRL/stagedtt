@@ -13,6 +13,7 @@ type global =
 and syntax =
   | Local of int
   | Global of global
+  | Hole of string option
 
   | Lam of Ident.t * syntax
   | Ap of syntax * syntax
@@ -22,6 +23,7 @@ and syntax =
 
   | CodePi of syntax * syntax
   | CodeUniv of int
+  | CodeExpr of syntax
 
 and syntax_tp =
   | TpVar of int
@@ -43,6 +45,7 @@ and value =
 and code =
   | CodePi of value * value
   | CodeUniv of int
+  | CodeExpr of value
 
 and value_tp =
   | Pi of value_tp * Ident.t * tp_vclo
@@ -56,6 +59,7 @@ and neu = { hd : hd; spine : frm list }
 and hd =
   | Local of int
   | Global of [ `Unstaged of Ident.path * value Lazy.t * inner Lazy.t ]
+  | Hole of string option
 
 
 and frm =
@@ -84,6 +88,7 @@ and outer =
 and inner =
   | Local of int
   | Global of global
+  | Hole of string option
 
   | Lam of Ident.t * inner
   | Ap of inner * inner
@@ -93,6 +98,7 @@ and inner =
 
   | CodePi of inner * inner
   | CodeUniv of int
+  | CodeExpr of inner
 
 and staged =
   | Inner of inner

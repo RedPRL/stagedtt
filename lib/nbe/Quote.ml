@@ -45,6 +45,8 @@ and quote_code : D.code -> S.t =
   function
   | D.CodePi (base, fam) ->
     S.CodePi (quote base, quote fam)
+  | D.CodeExpr tm ->
+    S.CodeExpr (quote tm)
   | D.CodeUniv stage ->
     S.CodeUniv stage
 
@@ -59,6 +61,7 @@ and quote_hd : D.hd -> S.t =
   function
   | D.Local lvl -> S.Local (Quoting.level_to_index lvl)
   | D.Global gbl -> S.Global (gbl :> S.global)
+  | D.Hole nm -> S.Hole nm
 
 and quote_spine (tm : S.t) : D.frm list -> S.t =
   function

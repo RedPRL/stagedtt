@@ -1,19 +1,30 @@
 open Prelude
 
-(* [TODO: Reed M, 02/05/2022] Update to use cells *)
-type t =
+type info = Span.t option
+
+type 'a node =
+  {node : 'a;
+   info : info}
+
+type t = t_ node
+and t_ =
   | Ann of { tm : t; tp : t }
   | Var of Ident.path 
+  | Hole of string option
+
   | Pi of t * Ident.t * t
   | Lam of Ident.t list * t
   | Ap of t * t list
+
+
   | Expr of t
   | Quote of t
   | Splice of t
+
   | Univ of { stage : int }
 
-let rec dump fmt =
-  function
+let rec dump fmt tm =
+  match tm.node with
   | Ann {tm; tp} ->
     Format.fprintf fmt "ann[%a, %a]"
       dump tm
@@ -21,6 +32,9 @@ let rec dump fmt =
   | Var ident ->
     Format.fprintf fmt "var[%a]"
       Ident.pp_path ident
+  | Hole nm ->
+    Format.fprintf fmt "hole[%a]"
+      (Format.pp_print_option Format.pp_print_string) nm
   | Pi (base, ident, fam) ->
     Format.fprintf fmt "pi[%a, %a, %a]"
       Ident.pp ident

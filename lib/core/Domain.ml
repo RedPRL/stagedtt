@@ -31,12 +31,14 @@ and tp = D.value_tp =
 and code = D.code = 
   | CodePi of t * t
   | CodeUniv of int
+  | CodeExpr of t
 
 and neu = D.neu = { hd : hd; spine : frm list } 
 
 and hd = D.hd = 
   | Local of int
   | Global of global
+  | Hole of string option
 
 and global =
   [ `Unstaged of Ident.path * D.value Lazy.t * D.inner Lazy.t ]
@@ -50,6 +52,9 @@ let local lvl =
 
 let global nm v inner =
   Neu { hd = Global (`Unstaged (nm, v, inner)); spine = [] }
+
+let hole nm =
+  Neu { hd = Hole nm; spine = [] }
 
 let push_frm (neu : neu) (frm : frm) ~(unfold : t -> t) ~(stage : D.inner -> D.inner) : neu =
   match neu.hd with
@@ -70,8 +75,6 @@ struct
   let proj = right 4
   let arrow = right 3
   (* [TODO: Reed M, 02/05/2022] Figure out these *)
-  let quote = right 3
-  let splice = right 3
   let colon = nonassoc 2
   let arrow = right 1
   let in_ = nonassoc 0
@@ -145,6 +148,9 @@ and pp_hd env fmt  =
   | Global (`Unstaged (path, _, _)) ->
     let x, _ = Pp.bind_var (User path) env in
     Format.pp_print_string fmt x
+  | Hole nm ->
+    Format.fprintf fmt "?%a"
+      (Format.pp_print_option Format.pp_print_string) nm
 
 and pp_frm env fmt =
   function
@@ -162,6 +168,9 @@ and pp_code env fmt =
       (pp env) fam
   | CodeUniv stage ->
     Format.fprintf fmt "type %d" stage
+  | CodeExpr tm ->
+    Format.fprintf fmt "⇑[ %a ]"
+      (pp env) tm
 
 let rec pp_tp env =
   Pp.parens classify_tp env @@ fun fmt ->
